@@ -1,276 +1,179 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f8fafc">
-  <title>WhatsApp — Supabase</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#075e54">
+  <title>WhatsApp Inbox</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: { fontFamily: { sans: ["Inter", "sans-serif"] } }
-      }
-    };
-  </script>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color-scheme:light}
+    *{box-sizing:border-box}
+    body{margin:0;background:#e9edef}
+    .app{height:100dvh;min-height:560px;max-width:1600px;margin:auto;background:#fff;display:flex;overflow:hidden;box-shadow:0 2px 16px #00000012}
+    .sidebar{width:390px;min-width:320px;border-right:1px solid #e9edef;display:flex;flex-direction:column;background:#fff}
+    .main{flex:1;min-width:0;display:flex;flex-direction:column;background:#efeae2}
+    .topbar{height:64px;min-height:64px;background:#f0f2f5;display:flex;align-items:center;padding:0 18px;gap:12px}
+    .brand-mark{width:40px;height:40px;border-radius:50%;background:#d9fdd3;color:#075e54;display:grid;place-items:center;font-size:20px}
+    .search-wrap{padding:9px 12px;background:#fff;border-bottom:1px solid #f0f2f5}
+    .search{width:100%;background:#f0f2f5;border:0;border-radius:9px;padding:10px 14px 10px 38px;outline:none;font-size:13px}
+    .contact{display:flex;align-items:center;gap:12px;padding:12px 15px;cursor:pointer;border-bottom:1px solid #f4f5f5;transition:background .15s}
+    .contact:hover{background:#f5f6f6}.contact.active{background:#f0f2f5}
+    .avatar{width:48px;height:48px;flex:none;border-radius:50%;background:#dfe7e9;color:#42636a;display:grid;place-items:center;font-weight:600;font-size:16px}
+    .chat-bg{flex:1;overflow:auto;padding:24px clamp(16px,5vw,80px);background-color:#efeae2;background-image:radial-gradient(#d9d2c8 0.7px,transparent .7px);background-size:18px 18px}
+    .bubble{max-width:min(72%,620px);padding:9px 11px 7px;border-radius:9px;margin:8px 0;box-shadow:0 1px 1px #00000012;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.45}
+    .bubble.in{background:#fff;border-top-left-radius:2px;margin-right:auto}
+    .bubble.out{background:#d9fdd3;border-top-right-radius:2px;margin-left:auto}
+    .bubble-meta{display:flex;justify-content:flex-end;gap:5px;color:#667781;font-size:10px;margin-top:4px}
+    .composer{background:#f0f2f5;padding:12px 18px;display:flex;gap:10px;align-items:flex-end}
+    .composer textarea{flex:1;resize:none;max-height:120px;min-height:44px;border:0;border-radius:10px;padding:12px 14px;outline:none;font:inherit;font-size:14px;background:#fff}
+    .send{width:44px;height:44px;border:0;border-radius:50%;background:#00a884;color:#fff;display:grid;place-items:center;cursor:pointer}
+    .send:disabled{opacity:.5;cursor:not-allowed}
+    .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#667781;padding:24px}
+    .page-tabs{display:flex;gap:4px;padding:10px 12px;border-bottom:1px solid #e9edef}
+    .page-tab{flex:1;border:0;border-radius:8px;padding:10px 6px;background:transparent;color:#667781;font-size:12px;font-weight:600;cursor:pointer}
+    .page-tab.active{background:#e7f8f3;color:#008069}
+    .status-dot{width:8px;height:8px;background:#25d366;border-radius:50%;display:inline-block}
+    .mobile-back{display:none;border:0;background:transparent;font-size:22px;color:#54656f}
+    .muted{color:#667781}
+    @media(max-width:700px){
+      .app{height:100dvh;min-height:0}
+      .sidebar{width:100%;min-width:0;border:0}
+      .main{display:none;width:100%}
+      .app.chat-open .sidebar{display:none}
+      .app.chat-open .main{display:flex}
+      .mobile-back{display:block}
+      .topbar{height:58px;min-height:58px;padding:0 12px}
+      .chat-bg{padding:14px 12px}
+      .bubble{max-width:88%}
+      .composer{padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom))}
+      .contact{padding:11px 13px}
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-slate-50 p-4 text-slate-800">
-  <main class="mx-auto grid w-full max-w-5xl gap-5 py-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-    <section class="h-fit rounded-2xl border border-slate-100 bg-white p-6 shadow-lg sm:p-8">
-      <header class="mb-6">
-        <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </div>
-        <h1 class="text-2xl font-bold text-slate-900">Kirim Pesan WhatsApp</h1>
-        <p class="mt-1 text-sm text-slate-500">Static HTML + Supabase Client + Realtime.</p>
-      </header>
+<body>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <header class="topbar">
+      <div class="brand-mark">✆</div>
+      <div class="min-w-0 flex-1"><div class="font-bold text-[15px] text-slate-800">WhatsApp Inbox</div><div class="text-[11px] text-slate-500">Apple The Exchange TRX</div></div>
+      <span id="connection" class="text-[11px] text-slate-500 flex items-center gap-1.5"><span class="status-dot" style="background:#f59e0b"></span> Menghubungkan</span>
+    </header>
+    <nav class="page-tabs" aria-label="Halaman inbox">
+      <button class="page-tab active" data-page="inbox">Pesan Masuk</button>
+      <button class="page-tab" data-page="reply">Balas Pesan</button>
+    </nav>
+    <div class="search-wrap relative">
+      <span class="absolute left-6 top-[18px] text-slate-400">⌕</span>
+      <input id="search" class="search" placeholder="Cari nama atau nomor..." aria-label="Cari percakapan">
+    </div>
+    <div class="px-4 py-2 text-[11px] font-semibold tracking-wide text-slate-500 flex justify-between">
+      <span id="list-heading">SEMUA PESAN</span><span id="message-count">0</span>
+    </div>
+    <div id="conversation-list" class="flex-1 overflow-y-auto"></div>
+    <div class="border-t border-slate-100 px-4 py-3 text-[10px] text-slate-400">Realtime · Supabase</div>
+  </aside>
 
-      <div class="mb-5 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
-        <span class="text-xs font-medium text-slate-600">Supabase Realtime</span>
-        <span class="flex items-center gap-2 text-xs font-semibold" aria-live="polite">
-          <span id="realtimeDot" class="h-2 w-2 rounded-full bg-amber-400"></span>
-          <span id="realtimeStatus" class="text-slate-600">Menghubungkan...</span>
-        </span>
-      </div>
-
-      <form id="messageForm" class="space-y-4">
-        <div>
-          <label for="to" class="mb-1 block text-sm font-medium text-slate-700">Nomor Tujuan</label>
-          <input id="to" name="to" type="tel" inputmode="numeric" autocomplete="tel" value="6282311155579"
-            placeholder="Contoh: 6281234567890" required pattern="[0-9+()\\s-]{8,20}"
-            class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500">
-          <p class="mt-1 text-xs text-slate-400">Gunakan format internasional, misalnya 628...</p>
-        </div>
-
-        <div>
-          <label for="message" class="mb-1 block text-sm font-medium text-slate-700">Isi Pesan</label>
-          <textarea id="message" name="message" rows="4" required maxlength="4096"
-            placeholder="Tulis pesan Anda di sini..."
-            class="w-full resize-none rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500">Halo, saya menerima pesan tersebut.</textarea>
-        </div>
-
-        <button id="submitBtn" type="submit"
-          class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
-          <span id="btnText">Kirim Pesan</span>
-          <svg id="btnSpinner" class="hidden h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l2-2.647z"></path>
-          </svg>
-        </button>
-      </form>
-
-      <div id="responseContainer" class="mt-5 hidden" aria-live="polite">
-        <div class="mb-1.5 flex items-center justify-between">
-          <span id="statusBadge" class="rounded-full px-2.5 py-0.5 text-xs font-semibold">Status</span>
-          <button id="clearResponse" type="button" class="text-xs text-slate-400 hover:text-slate-600">Tutup</button>
-        </div>
-        <pre id="responseOutput" class="w-full overflow-x-auto rounded-xl bg-slate-900 p-3.5 font-mono text-xs leading-relaxed text-slate-100"></pre>
-      </div>
+  <main class="main">
+    <header id="chat-header" class="topbar">
+      <div class="empty w-full"><div class="text-4xl mb-2">💬</div><div class="font-semibold text-slate-700">Pilih percakapan</div><div class="text-xs mt-1">Pilih pesan di sebelah kiri untuk melihat detail dan membalas.</div></div>
+    </header>
+    <section id="message-area" class="chat-bg">
+      <div class="empty"><div class="text-6xl mb-4">✉️</div><div class="text-lg font-semibold text-slate-700">WhatsApp Inbox</div><p class="text-sm max-w-sm mt-2">Pesan masuk akan muncul otomatis di sini. Pilih percakapan untuk mulai membaca dan membalas pesan.</p></div>
     </section>
-
-    <section class="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg sm:p-8">
-      <div class="mb-5 flex items-center justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-bold text-slate-900">Riwayat Pesan</h2>
-          <p class="mt-1 text-xs text-slate-500">Diperbarui otomatis melalui Supabase Realtime.</p>
-        </div>
-        <button id="refreshMessages" type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50">Refresh</button>
-      </div>
-      <p id="historyNotice" class="mb-3 hidden rounded-lg bg-amber-50 p-3 text-xs text-amber-800"></p>
-      <div id="messagesList" class="space-y-3" aria-live="polite">
-        <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Memuat riwayat pesan...</p>
-      </div>
-    </section>
+    <form id="composer" class="composer hidden">
+      <textarea id="message-input" rows="1" placeholder="Ketik pesan..." aria-label="Tulis balasan"></textarea>
+      <button id="send-button" class="send" type="submit" aria-label="Kirim pesan">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+      </button>
+    </form>
   </main>
+</div>
 
-  <script type="module">
-    import { fetchMessages, subscribeToMessages, sendWhatsAppMessage } from "./assets/js/messages.js";
-
-    const form = document.getElementById("messageForm");
-    const submitBtn = document.getElementById("submitBtn");
-    const btnText = document.getElementById("btnText");
-    const btnSpinner = document.getElementById("btnSpinner");
-    const responseContainer = document.getElementById("responseContainer");
-    const statusBadge = document.getElementById("statusBadge");
-    const responseOutput = document.getElementById("responseOutput");
-    const messagesList = document.getElementById("messagesList");
-    const historyNotice = document.getElementById("historyNotice");
-    const realtimeStatus = document.getElementById("realtimeStatus");
-    const realtimeDot = document.getElementById("realtimeDot");
-
-    const messagesById = new Map();
-    let stopRealtime = null;
-
-    function setLoading(loading) {
-      submitBtn.disabled = loading;
-      btnText.textContent = loading ? "Mengirim..." : "Kirim Pesan";
-      btnSpinner.classList.toggle("hidden", !loading);
+<script type="module">
+import { fetchMessages, subscribeToMessages, sendWhatsAppMessage } from "./assets/js/messages.js";
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = { messages: [], conversations: new Map(), active: null, page: 'inbox', sending: false };
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const phoneOf = m => m.direction === 'outbound' ? (m.recipient_phone || m.from_phone || '') : (m.from_phone || '');
+  const timestampOf = m => m.message_timestamp || m.created_at || null;
+  const timeLabel = value => value ? new Date(value).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+  const initials = value => (String(value || '?').replace(/\D/g,'').slice(-2) || String(value || '?').slice(0,2)).toUpperCase();
+  const textOf = m => m.text_body || (m.message_type && m.message_type !== 'text' ? '[' + m.message_type + ']' : '[Pesan tanpa teks]');
+  function setConnection(label,color) { $('connection').innerHTML = '<span class="status-dot" style="background:'+color+'"></span> '+escapeHtml(label); }
+  function buildConversations() {
+    const map = new Map();
+    for (const m of state.messages) {
+      const phone = phoneOf(m); if (!phone) continue;
+      if (!map.has(phone)) map.set(phone,{phone,name:m.profile_name || phone,messages:[],last:null,unread:0});
+      const c = map.get(phone); c.messages.push(m);
+      if (m.profile_name && m.direction === 'inbound') c.name = m.profile_name;
+      if (!c.last || new Date(timestampOf(m)||0) > new Date(timestampOf(c.last)||0)) c.last = m;
     }
-
-    function showResponse(success, data) {
-      responseContainer.classList.remove("hidden");
-      statusBadge.textContent = success ? "Berhasil" : "Gagal";
-      statusBadge.className = success
-        ? "rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700"
-        : "rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700";
-      responseOutput.textContent = JSON.stringify(data, null, 2);
+    for (const c of map.values()) c.messages.sort((a,b)=>new Date(timestampOf(a)||0)-new Date(timestampOf(b)||0));
+    state.conversations = new Map([...map.entries()].sort((a,b)=>new Date(timestampOf(b[1].last)||0)-new Date(timestampOf(a[1].last)||0)));
+  }
+  function renderList() {
+    const query = $('search').value.trim().toLowerCase();
+    const entries = [...state.conversations.values()].filter(c=>c.phone.toLowerCase().includes(query)||c.name.toLowerCase().includes(query));
+    $('message-count').textContent = state.conversations.size;
+    $('list-heading').textContent = state.page === 'inbox' ? 'PESAN MASUK' : 'PILIH KONTAK';
+    if (!entries.length) { $('conversation-list').innerHTML='<div class="p-8 text-center text-sm text-slate-400">'+(query?'Kontak tidak ditemukan.':'Belum ada pesan yang tersimpan.')+'</div>'; return; }
+    $('conversation-list').innerHTML = entries.map(c => {
+      const last=c.last||{}, preview=(last.direction==='outbound'?'Anda: ':'')+textOf(last);
+      return '<button type="button" class="contact w-full text-left '+(state.active===c.phone?'active':'')+'" data-phone="'+escapeHtml(c.phone)+'"><div class="avatar">'+escapeHtml(initials(c.name))+'</div><div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><div class="font-semibold text-[14px] text-slate-800 truncate">'+escapeHtml(c.name)+'</div><time class="text-[10px] text-slate-400 flex-none">'+escapeHtml(timeLabel(timestampOf(last)))+'</time></div><div class="text-[12px] text-slate-500 truncate mt-1">'+escapeHtml(preview)+'</div><div class="text-[10px] text-slate-400 mt-1">'+escapeHtml(c.phone)+'</div></div></button>';
+    }).join('');
+    $('conversation-list').querySelectorAll('[data-phone]').forEach(el=>el.addEventListener('click',()=>openConversation(el.dataset.phone)));
+  }
+  function renderChat() {
+    const c=state.conversations.get(state.active);
+    if (!c) { $('chat-header').innerHTML='<div class="empty w-full"><div class="text-4xl">💬</div><div class="font-semibold mt-2">Pilih percakapan</div></div>'; $('message-area').innerHTML='<div class="empty"><div class="text-5xl">✉️</div><p class="mt-3 text-sm">Pilih pesan untuk melihat percakapan.</p></div>'; $('composer').classList.add('hidden'); return; }
+    $('chat-header').innerHTML='<button class="mobile-back" id="back-button" aria-label="Kembali">‹</button><div class="avatar" style="width:40px;height:40px">'+escapeHtml(initials(c.name))+'</div><div class="min-w-0"><div class="font-semibold text-sm text-slate-800 truncate">'+escapeHtml(c.name)+'</div><div class="text-[11px] text-slate-500">'+escapeHtml(c.phone)+'</div></div><div class="ml-auto text-xs text-slate-500">WhatsApp</div>';
+    const back=$('back-button'); if(back) back.addEventListener('click',()=>$('app').classList.remove('chat-open'));
+    $('message-area').innerHTML=c.messages.map(m=>{const outgoing=m.direction==='outbound',body=escapeHtml(textOf(m)),status=outgoing&&m.status?'<span>'+escapeHtml(m.status)+'</span>':'';return '<div class="bubble '+(outgoing?'out':'in')+'">'+body+'<div class="bubble-meta"><span>'+escapeHtml(timeLabel(timestampOf(m)))+'</span>'+status+'</div></div>';}).join('')||'<div class="text-center text-xs text-slate-500">Belum ada pesan dalam percakapan ini.</div>';
+    $('message-area').scrollTop=$('message-area').scrollHeight; $('composer').classList.remove('hidden');
+  }
+  function openConversation(phone) { state.active=phone; $('app').classList.add('chat-open'); renderList(); renderChat(); if(state.page!=='reply') setPage('reply'); }
+  function setPage(page) { state.page=page; document.querySelectorAll('.page-tab').forEach(b=>b.classList.toggle('active',b.dataset.page===page)); renderList(); if(page==='inbox'&&window.matchMedia('(max-width:700px)').matches) $('app').classList.remove('chat-open'); }
+  function upsertMessage(m) {
+    if(!m) return; const idx=state.messages.findIndex(x=>x.id===m.id||(m.wamid&&x.wamid===m.wamid));
+    if(idx>=0) state.messages[idx]={...state.messages[idx],...m}; else state.messages.push(m);
+    buildConversations(); renderList(); if(state.active) renderChat();
+  }
+  async function loadMessages() {
+    try { state.messages=await fetchMessages(1000); buildConversations(); renderList(); if(state.active) renderChat(); }
+    catch(error) { console.error(error); setConnection('Periksa akses tabel','#ef4444'); }
+  }
+  async function sendMessage(event) {
+    event.preventDefault(); const c=state.conversations.get(state.active), message=$('message-input').value.trim();
+    if(!c||!message||state.sending) return;
+    state.sending=true; $('send-button').disabled=true;
+    try { await sendWhatsAppMessage(c.phone,message); $('message-input').value=''; await loadMessages(); }
+    catch(error) { alert('Pesan gagal dikirim: '+error.message); }
+    finally { state.sending=false; $('send-button').disabled=false; $('message-input').focus(); }
+  }
+  $('search').addEventListener('input',renderList);
+  $('composer').addEventListener('submit',sendMessage);
+  $('message-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('composer').requestSubmit();}});
+  document.querySelectorAll('.page-tab').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
+  loadMessages();
+  const stopRealtime=subscribeToMessages({
+    onMessage:({eventType,record})=>{
+      if(eventType==='DELETE'){state.messages=state.messages.filter(m=>m.id!==record?.id);buildConversations();renderList();if(state.active)renderChat();}
+      else upsertMessage(record);
+    },
+    onStatus:status=>{
+      if(status==='SUBSCRIBED') setConnection('Realtime aktif','#25d366');
+      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') setConnection('Realtime terputus','#ef4444');
+      else setConnection('Menghubungkan','#f59e0b');
     }
-
-    function messageTime(message) {
-      const value = message.message_timestamp || message.created_at;
-      if (!value) return "Waktu tidak tersedia";
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? "Waktu tidak tersedia" : date.toLocaleString("id-ID");
-    }
-
-    function renderMessages() {
-      const messages = [...messagesById.values()]
-        .sort((a, b) => new Date(b.created_at || b.message_timestamp || 0) - new Date(a.created_at || a.message_timestamp || 0))
-        .slice(0, 50);
-
-      messagesList.replaceChildren();
-
-      if (messages.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "rounded-xl bg-slate-50 p-4 text-sm text-slate-500";
-        empty.textContent = "Belum ada pesan tersimpan.";
-        messagesList.append(empty);
-        return;
-      }
-
-      for (const message of messages) {
-        const outbound = message.direction === "outbound";
-        const card = document.createElement("article");
-        card.className = "rounded-xl border border-slate-100 p-4";
-
-        const top = document.createElement("div");
-        top.className = "mb-2 flex flex-wrap items-center justify-between gap-2";
-
-        const direction = document.createElement("span");
-        direction.className = outbound
-          ? "rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700"
-          : "rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700";
-        direction.textContent = outbound ? "Keluar" : "Masuk";
-
-        const time = document.createElement("time");
-        time.className = "text-[11px] text-slate-400";
-        time.dateTime = message.message_timestamp || message.created_at || "";
-        time.textContent = messageTime(message);
-
-        top.append(direction, time);
-
-        const identity = document.createElement("p");
-        identity.className = "mb-1 text-xs font-medium text-slate-500";
-        identity.textContent = outbound
-          ? "Kepada: " + (message.recipient_phone || "Nomor tidak tersedia")
-          : (message.profile_name || message.from_phone || "Pengirim tidak diketahui");
-
-        const body = document.createElement("p");
-        body.className = "whitespace-pre-wrap break-words text-sm text-slate-800";
-        body.textContent = message.text_body || "[" + (message.message_type || "Pesan non-teks") + "]";
-
-        const status = document.createElement("p");
-        status.className = "mt-2 text-[11px] text-slate-400";
-        status.textContent = "Status: " + (message.status || "tidak diketahui");
-
-        card.append(top, identity, body, status);
-        messagesList.append(card);
-      }
-    }
-
-    function upsertMessage(record) {
-      if (!record) return;
-      const key = record.id || record.wamid;
-      if (!key) return;
-      messagesById.set(key, { ...(messagesById.get(key) || {}), ...record });
-      renderMessages();
-    }
-
-    async function loadMessages() {
-      historyNotice.classList.add("hidden");
-      try {
-        const rows = await fetchMessages(50);
-        for (const row of rows) upsertMessage(row);
-        renderMessages();
-      } catch (error) {
-        historyNotice.textContent = "Riwayat pesan tidak dapat dimuat: " + error.message;
-        historyNotice.classList.remove("hidden");
-        if (messagesById.size === 0) {
-          messagesList.replaceChildren();
-          const empty = document.createElement("p");
-          empty.className = "rounded-xl bg-slate-50 p-4 text-sm text-slate-500";
-          empty.textContent = "Tidak dapat memuat riwayat pesan. Periksa izin SELECT dan kebijakan RLS tabel trx_messages.";
-          messagesList.append(empty);
-        }
-      }
-    }
-
-    function updateRealtimeStatus(status, error) {
-      const labels = {
-        SUBSCRIBED: "Terhubung",
-        CHANNEL_ERROR: "Koneksi bermasalah",
-        TIMED_OUT: "Koneksi timeout",
-        CLOSED: "Terputus",
-      };
-      realtimeStatus.textContent = labels[status] || status;
-      realtimeDot.className = "h-2 w-2 rounded-full " +
-        (status === "SUBSCRIBED" ? "bg-emerald-500" :
-          status === "CHANNEL_ERROR" || status === "TIMED_OUT" ? "bg-rose-500" : "bg-amber-400");
-
-      if (error) console.error("Supabase Realtime:", error);
-    }
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const to = document.getElementById("to").value.trim();
-      const message = document.getElementById("message").value.trim();
-
-      if (!to || !message) {
-        showResponse(false, { error: "Nomor tujuan dan isi pesan wajib diisi." });
-        return;
-      }
-
-      setLoading(true);
-      responseContainer.classList.add("hidden");
-
-      try {
-        const result = await sendWhatsAppMessage(to, message);
-        showResponse(true, result);
-        await loadMessages();
-      } catch (error) {
-        showResponse(false, { error: error.message });
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    document.getElementById("clearResponse").addEventListener("click", () => {
-      responseContainer.classList.add("hidden");
-    });
-
-    document.getElementById("refreshMessages").addEventListener("click", loadMessages);
-
-    await loadMessages();
-    stopRealtime = subscribeToMessages({
-      onMessage: ({ eventType, record }) => {
-        if (eventType === "DELETE") {
-          if (record?.id) messagesById.delete(record.id);
-          renderMessages();
-          return;
-        }
-        upsertMessage(record);
-      },
-      onStatus: updateRealtimeStatus,
-    });
-
-    window.addEventListener("beforeunload", () => {
-      stopRealtime?.();
-    }, { once: true });
-  </script>
+  });
+  window.addEventListener('beforeunload',()=>stopRealtime(),{once:true});
+})();
+</script>
 </body>
 </html>
