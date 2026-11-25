@@ -5,6 +5,7 @@ const MESSAGE_COLUMNS = [
   "wamid",
   "from_phone",
   "profile_name",
+  "display_phone_number",
   "message_type",
   "text_body",
   "message_timestamp",
