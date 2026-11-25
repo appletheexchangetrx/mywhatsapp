@@ -1,6 +1,7 @@
+import { getInitials } from "../core/formatters.js";
+
 export function initials(value) {
-  const name = String(value || "?").trim();
-  return name.slice(0, 2).toUpperCase();
+  return getInitials(value);
 }
 
 export function textOf(message = {}) {
@@ -16,8 +17,7 @@ export function createConversationItem(
 ) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className =
-    "contact" + (activePhone === conversation.phone ? " active" : "");
+  button.className = "contact" + (activePhone === conversation.phone ? " active" : "");
   button.dataset.phone = conversation.phone;
 
   const avatar = document.createElement("div");
@@ -27,18 +27,17 @@ export function createConversationItem(
 
   const copy = document.createElement("div");
   copy.className = "contact-copy";
-
   const line = document.createElement("div");
   line.className = "contact-line";
-
   const name = document.createElement("span");
   name.className = "contact-name";
   name.textContent = conversation.name;
 
   const time = document.createElement("time");
   time.className = "contact-time";
-  time.textContent = timeLabel(conversation.last?.message_timestamp || conversation.last?.created_at);
-
+  time.textContent = timeLabel(
+    conversation.last?.message_timestamp || conversation.last?.created_at,
+  );
   line.append(name, time);
 
   const preview = document.createElement("div");
@@ -50,7 +49,6 @@ export function createConversationItem(
   const phone = document.createElement("div");
   phone.className = "contact-phone";
   phone.textContent = conversation.phone;
-
   copy.append(line, preview, phone);
   button.append(avatar, copy);
   return button;

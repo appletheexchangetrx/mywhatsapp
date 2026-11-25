@@ -1,28 +1,23 @@
 export function bindMessageInput({
-  form,
-  input,
-  button,
-  onSend,
-  isSending = () => false,
-  onSendingChange = () => {},
+  form, input, button, onSend, isSending = () => false,
+  onSendingChange = () => {}, onError = (error) => console.error(error),
 }) {
   if (!form || !input) return () => {};
-
-  const setSending = (value) => {
-    onSendingChange(Boolean(value));
-    if (button) button.disabled = Boolean(value);
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const message = input.value.trim();
     if (!message || isSending()) return;
 
-    setSending(true);
+    onSendingChange(true);
+    if (button) button.disabled = true;
     try {
       await onSend?.(message);
+    } catch (error) {
+      onError(error);
     } finally {
-      setSending(false);
+      onSendingChange(false);
+      if (button) button.disabled = false;
       input.focus();
     }
   };
@@ -36,7 +31,6 @@ export function bindMessageInput({
 
   form.addEventListener("submit", handleSubmit);
   input.addEventListener("keydown", handleKeydown);
-
   return () => {
     form.removeEventListener("submit", handleSubmit);
     input.removeEventListener("keydown", handleKeydown);

@@ -1,12 +1,7 @@
 import { textOf } from "./conversation-item.js";
 
-export function renderMessageList({
-  root,
-  conversation,
-  timeLabel = (value) => value || "",
-}) {
+export function renderMessageList({ root, conversation, timeLabel = (value) => value || "" }) {
   if (!root) return;
-
   if (!conversation) {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -14,7 +9,6 @@ export function renderMessageList({
     root.replaceChildren(empty);
     return;
   }
-
   if (!conversation.messages.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -32,11 +26,8 @@ export function renderMessageList({
 
     const meta = document.createElement("div");
     meta.className = "bubble-meta";
-
     const time = document.createElement("span");
-    time.textContent = timeLabel(
-      message.message_timestamp || message.created_at,
-    );
+    time.textContent = timeLabel(message.message_timestamp || message.created_at);
     meta.append(time);
 
     if (outgoing && message.status) {
@@ -44,11 +35,9 @@ export function renderMessageList({
       status.textContent = message.status;
       meta.append(status);
     }
-
     bubble.append(meta);
     fragment.append(bubble);
   }
-
   root.replaceChildren(fragment);
   root.scrollTop = root.scrollHeight;
 }

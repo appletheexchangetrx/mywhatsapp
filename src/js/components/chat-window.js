@@ -1,10 +1,7 @@
 import { initials } from "./conversation-item.js";
 
 export function renderChatHeader({
-  nameElement,
-  phoneElement,
-  avatarElement,
-  conversation,
+  nameElement, phoneElement, avatarElement, conversation,
 }) {
   if (!conversation) {
     if (nameElement) nameElement.textContent = "Percakapan";
@@ -12,7 +9,6 @@ export function renderChatHeader({
     if (avatarElement) avatarElement.textContent = "?";
     return;
   }
-
   if (nameElement) nameElement.textContent = conversation.name;
   if (phoneElement) phoneElement.textContent = conversation.phone;
   if (avatarElement) avatarElement.textContent = initials(conversation.name);
