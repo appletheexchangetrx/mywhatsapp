@@ -3,20 +3,20 @@ export function bindMessageInput({
   input,
   button,
   onSend,
+  isSending = () => false,
+  onSendingChange = () => {},
 }) {
   if (!form || !input) return () => {};
 
-  let sending = false;
-
   const setSending = (value) => {
-    sending = Boolean(value);
-    if (button) button.disabled = sending;
+    onSendingChange(Boolean(value));
+    if (button) button.disabled = Boolean(value);
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const message = input.value.trim();
-    if (!message || sending) return;
+    if (!message || isSending()) return;
 
     setSending(true);
     try {
