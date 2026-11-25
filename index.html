@@ -1,223 +1,276 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kirim Pesan API</title>
-    <!-- Menggunakan Tailwind CSS untuk styling yang cepat, modern, dan responsif -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Menggunakan Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f8fafc">
+  <title>WhatsApp — Supabase</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: { fontFamily: { sans: ["Inter", "sans-serif"] } }
+      }
+    };
+  </script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen bg-slate-50 p-4 text-slate-800">
+  <main class="mx-auto grid w-full max-w-5xl gap-5 py-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <section class="h-fit rounded-2xl border border-slate-100 bg-white p-6 shadow-lg sm:p-8">
+      <header class="mb-6">
+        <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900">Kirim Pesan WhatsApp</h1>
+        <p class="mt-1 text-sm text-slate-500">Static HTML + Supabase Client + Realtime.</p>
+      </header>
 
-    <!-- Container Utama -->
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sm:p-8">
-        <!-- Header -->
-        <div class="mb-6">
-            <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-            </div>
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Kirim Pesan API</h1>
-            <p class="text-sm text-slate-500 mt-1">Kirim pesan langsung melalui Supabase Edge Function.</p>
+      <div class="mb-5 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
+        <span class="text-xs font-medium text-slate-600">Supabase Realtime</span>
+        <span class="flex items-center gap-2 text-xs font-semibold" aria-live="polite">
+          <span id="realtimeDot" class="h-2 w-2 rounded-full bg-amber-400"></span>
+          <span id="realtimeStatus" class="text-slate-600">Menghubungkan...</span>
+        </span>
+      </div>
+
+      <form id="messageForm" class="space-y-4">
+        <div>
+          <label for="to" class="mb-1 block text-sm font-medium text-slate-700">Nomor Tujuan</label>
+          <input id="to" name="to" type="tel" inputmode="numeric" autocomplete="tel" value="6282311155579"
+            placeholder="Contoh: 6281234567890" required pattern="[0-9+()\\s-]{8,20}"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500">
+          <p class="mt-1 text-xs text-slate-400">Gunakan format internasional, misalnya 628...</p>
         </div>
 
-        <!-- Form Input -->
-        <form id="messageForm" class="space-y-4">
-            <!-- Nomor Tujuan -->
-            <div>
-                <label for="to" class="block text-sm font-medium text-slate-700 mb-1">Nomor Tujuan</label>
-                <input 
-                    type="text" 
-                    id="to" 
-                    name="to" 
-                    value="6282311155579"
-                    placeholder="Contoh: 6281234567890"
-                    required
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
-                >
-                <p class="text-xs text-slate-400 mt-1">Gunakan format kode negara tanpa tanda + (contoh: 628...)</p>
-            </div>
-
-            <!-- Isi Pesan -->
-            <div>
-                <label for="message" class="block text-sm font-medium text-slate-700 mb-1">Isi Pesan</label>
-                <textarea 
-                    id="message" 
-                    name="message" 
-                    rows="4" 
-                    required
-                    placeholder="Tulis pesan Anda di sini..."
-                    class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition resize-none"
-                >Halo, saya menerima pesan tersebut.</textarea>
-            </div>
-
-            <!-- Pengaturan API (Opsional / Tersembunyi secara default agar rapi) -->
-            <details class="group border border-slate-200 rounded-xl p-3 bg-slate-50">
-                <summary class="text-xs font-medium text-slate-600 cursor-pointer select-none flex items-center justify-between">
-                    <span>Konfigurasi Endpoint & API Key</span>
-                    <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div class="mt-3 space-y-3 pt-3 border-t border-slate-200">
-                    <div>
-                        <label for="endpoint" class="block text-xs font-medium text-slate-600 mb-1">Endpoint URL</label>
-                        <input 
-                            type="url" 
-                            id="endpoint" 
-                            value="https://axednjikcambzbkxyqpp.supabase.co/functions/v1/trx-send-messages"
-                            required
-                            class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        >
-                    </div>
-                    <div>
-                        <label for="apikey" class="block text-xs font-medium text-slate-600 mb-1">API Key</label>
-                        <input 
-                            type="text" 
-                            id="apikey" 
-                            value="sb_publishable_Vysddy5_b0uZ3iKgnkDTIw_X5O1pBEd"
-                            required
-                            class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        >
-                    </div>
-                </div>
-            </details>
-
-            <!-- Tombol Submit -->
-            <button 
-                type="submit" 
-                id="submitBtn"
-                class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-                <span id="btnText">Kirim Pesan</span>
-                <!-- Spinner Loading (Tersembunyi secara default) -->
-                <svg id="btnSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-            </button>
-        </form>
-
-        <!-- Kotak Notifikasi / Hasil Response -->
-        <div id="responseContainer" class="hidden mt-6">
-            <div class="flex items-center justify-between mb-1.5">
-                <span id="statusBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full">Status</span>
-                <button type="button" id="clearResponse" class="text-xs text-slate-400 hover:text-slate-600">Tutup</button>
-            </div>
-            <pre id="responseOutput" class="w-full p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs overflow-x-auto font-mono leading-relaxed"></pre>
+        <div>
+          <label for="message" class="mb-1 block text-sm font-medium text-slate-700">Isi Pesan</label>
+          <textarea id="message" name="message" rows="4" required maxlength="4096"
+            placeholder="Tulis pesan Anda di sini..."
+            class="w-full resize-none rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500">Halo, saya menerima pesan tersebut.</textarea>
         </div>
-    </div>
 
-    <script>
-        // Mengambil referensi elemen DOM
-        const form = document.getElementById('messageForm');
-        const submitBtn = document.getElementById('submitBtn');
-        const btnText = document.getElementById('btnText');
-        const btnSpinner = document.getElementById('btnSpinner');
-        const responseContainer = document.getElementById('responseContainer');
-        const statusBadge = document.getElementById('statusBadge');
-        const responseOutput = document.getElementById('responseOutput');
-        const clearResponseBtn = document.getElementById('clearResponse');
+        <button id="submitBtn" type="submit"
+          class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+          <span id="btnText">Kirim Pesan</span>
+          <svg id="btnSpinner" class="hidden h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l2-2.647z"></path>
+          </svg>
+        </button>
+      </form>
 
-        // Fungsi untuk mengatur status loading pada tombol
-        function setLoading(isLoading) {
-            submitBtn.disabled = isLoading;
-            if (isLoading) {
-                btnText.textContent = 'Mengirim...';
-                btnSpinner.classList.remove('hidden');
-                submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
-            } else {
-                btnText.textContent = 'Kirim Pesan';
-                btnSpinner.classList.add('hidden');
-                submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
-            }
+      <div id="responseContainer" class="mt-5 hidden" aria-live="polite">
+        <div class="mb-1.5 flex items-center justify-between">
+          <span id="statusBadge" class="rounded-full px-2.5 py-0.5 text-xs font-semibold">Status</span>
+          <button id="clearResponse" type="button" class="text-xs text-slate-400 hover:text-slate-600">Tutup</button>
+        </div>
+        <pre id="responseOutput" class="w-full overflow-x-auto rounded-xl bg-slate-900 p-3.5 font-mono text-xs leading-relaxed text-slate-100"></pre>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg sm:p-8">
+      <div class="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Riwayat Pesan</h2>
+          <p class="mt-1 text-xs text-slate-500">Diperbarui otomatis melalui Supabase Realtime.</p>
+        </div>
+        <button id="refreshMessages" type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50">Refresh</button>
+      </div>
+      <p id="historyNotice" class="mb-3 hidden rounded-lg bg-amber-50 p-3 text-xs text-amber-800"></p>
+      <div id="messagesList" class="space-y-3" aria-live="polite">
+        <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Memuat riwayat pesan...</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { fetchMessages, subscribeToMessages, sendWhatsAppMessage } from "./assets/js/messages.js";
+
+    const form = document.getElementById("messageForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const btnText = document.getElementById("btnText");
+    const btnSpinner = document.getElementById("btnSpinner");
+    const responseContainer = document.getElementById("responseContainer");
+    const statusBadge = document.getElementById("statusBadge");
+    const responseOutput = document.getElementById("responseOutput");
+    const messagesList = document.getElementById("messagesList");
+    const historyNotice = document.getElementById("historyNotice");
+    const realtimeStatus = document.getElementById("realtimeStatus");
+    const realtimeDot = document.getElementById("realtimeDot");
+
+    const messagesById = new Map();
+    let stopRealtime = null;
+
+    function setLoading(loading) {
+      submitBtn.disabled = loading;
+      btnText.textContent = loading ? "Mengirim..." : "Kirim Pesan";
+      btnSpinner.classList.toggle("hidden", !loading);
+    }
+
+    function showResponse(success, data) {
+      responseContainer.classList.remove("hidden");
+      statusBadge.textContent = success ? "Berhasil" : "Gagal";
+      statusBadge.className = success
+        ? "rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700"
+        : "rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700";
+      responseOutput.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function messageTime(message) {
+      const value = message.message_timestamp || message.created_at;
+      if (!value) return "Waktu tidak tersedia";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "Waktu tidak tersedia" : date.toLocaleString("id-ID");
+    }
+
+    function renderMessages() {
+      const messages = [...messagesById.values()]
+        .sort((a, b) => new Date(b.created_at || b.message_timestamp || 0) - new Date(a.created_at || a.message_timestamp || 0))
+        .slice(0, 50);
+
+      messagesList.replaceChildren();
+
+      if (messages.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "rounded-xl bg-slate-50 p-4 text-sm text-slate-500";
+        empty.textContent = "Belum ada pesan tersimpan.";
+        messagesList.append(empty);
+        return;
+      }
+
+      for (const message of messages) {
+        const outbound = message.direction === "outbound";
+        const card = document.createElement("article");
+        card.className = "rounded-xl border border-slate-100 p-4";
+
+        const top = document.createElement("div");
+        top.className = "mb-2 flex flex-wrap items-center justify-between gap-2";
+
+        const direction = document.createElement("span");
+        direction.className = outbound
+          ? "rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700"
+          : "rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-700";
+        direction.textContent = outbound ? "Keluar" : "Masuk";
+
+        const time = document.createElement("time");
+        time.className = "text-[11px] text-slate-400";
+        time.dateTime = message.message_timestamp || message.created_at || "";
+        time.textContent = messageTime(message);
+
+        top.append(direction, time);
+
+        const identity = document.createElement("p");
+        identity.className = "mb-1 text-xs font-medium text-slate-500";
+        identity.textContent = outbound
+          ? "Kepada: " + (message.recipient_phone || "Nomor tidak tersedia")
+          : (message.profile_name || message.from_phone || "Pengirim tidak diketahui");
+
+        const body = document.createElement("p");
+        body.className = "whitespace-pre-wrap break-words text-sm text-slate-800";
+        body.textContent = message.text_body || "[" + (message.message_type || "Pesan non-teks") + "]";
+
+        const status = document.createElement("p");
+        status.className = "mt-2 text-[11px] text-slate-400";
+        status.textContent = "Status: " + (message.status || "tidak diketahui");
+
+        card.append(top, identity, body, status);
+        messagesList.append(card);
+      }
+    }
+
+    function upsertMessage(record) {
+      if (!record) return;
+      const key = record.id || record.wamid;
+      if (!key) return;
+      messagesById.set(key, { ...(messagesById.get(key) || {}), ...record });
+      renderMessages();
+    }
+
+    async function loadMessages() {
+      historyNotice.classList.add("hidden");
+      try {
+        const rows = await fetchMessages(50);
+        for (const row of rows) upsertMessage(row);
+        renderMessages();
+      } catch (error) {
+        historyNotice.textContent = "Riwayat pesan tidak dapat dimuat: " + error.message;
+        historyNotice.classList.remove("hidden");
+        if (messagesById.size === 0) {
+          messagesList.replaceChildren();
+          const empty = document.createElement("p");
+          empty.className = "rounded-xl bg-slate-50 p-4 text-sm text-slate-500";
+          empty.textContent = "Tidak dapat memuat riwayat pesan. Periksa izin SELECT dan kebijakan RLS tabel trx_messages.";
+          messagesList.append(empty);
         }
+      }
+    }
 
-        // Fungsi untuk menampilkan hasil response di layar
-        function showResponse(isSuccess, statusCode, data) {
-            responseContainer.classList.remove('hidden');
-            
-            if (isSuccess) {
-                statusBadge.textContent = `Sukses (${statusCode})`;
-                statusBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
-            } else {
-                statusBadge.textContent = `Gagal (${statusCode})`;
-                statusBadge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700';
-            }
+    function updateRealtimeStatus(status, error) {
+      const labels = {
+        SUBSCRIBED: "Terhubung",
+        CHANNEL_ERROR: "Koneksi bermasalah",
+        TIMED_OUT: "Koneksi timeout",
+        CLOSED: "Terputus",
+      };
+      realtimeStatus.textContent = labels[status] || status;
+      realtimeDot.className = "h-2 w-2 rounded-full " +
+        (status === "SUBSCRIBED" ? "bg-emerald-500" :
+          status === "CHANNEL_ERROR" || status === "TIMED_OUT" ? "bg-rose-500" : "bg-amber-400");
 
-            // Format JSON agar mudah dibaca jika data berupa objek
-            if (typeof data === 'object') {
-                responseOutput.textContent = JSON.stringify(data, null, 2);
-            } else {
-                responseOutput.textContent = data;
-            }
+      if (error) console.error("Supabase Realtime:", error);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const to = document.getElementById("to").value.trim();
+      const message = document.getElementById("message").value.trim();
+
+      if (!to || !message) {
+        showResponse(false, { error: "Nomor tujuan dan isi pesan wajib diisi." });
+        return;
+      }
+
+      setLoading(true);
+      responseContainer.classList.add("hidden");
+
+      try {
+        const result = await sendWhatsAppMessage(to, message);
+        showResponse(true, result);
+        await loadMessages();
+      } catch (error) {
+        showResponse(false, { error: error.message });
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    document.getElementById("clearResponse").addEventListener("click", () => {
+      responseContainer.classList.add("hidden");
+    });
+
+    document.getElementById("refreshMessages").addEventListener("click", loadMessages);
+
+    await loadMessages();
+    stopRealtime = subscribeToMessages({
+      onMessage: ({ eventType, record }) => {
+        if (eventType === "DELETE") {
+          if (record?.id) messagesById.delete(record.id);
+          renderMessages();
+          return;
         }
+        upsertMessage(record);
+      },
+      onStatus: updateRealtimeStatus,
+    });
 
-        // Event listener saat form disubmit
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Mencegah reload halaman
-
-            // Ambil nilai dari input
-            const endpoint = document.getElementById('endpoint').value.trim();
-            const apikey = document.getElementById('apikey').value.trim();
-            const to = document.getElementById('to').value.trim();
-            const message = document.getElementById('message').value.trim();
-
-            setLoading(true);
-            responseContainer.classList.add('hidden');
-
-            try {
-                // Eksekusi request POST sesuai perintah cURL
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': apikey
-                    },
-                    body: JSON.stringify({
-                        to: to,
-                        message: message
-                    })
-                });
-
-                // Mencoba parsing response sebagai JSON, jika gagal ambil sebagai teks biasa
-                const contentType = response.headers.get('content-type');
-                let responseData;
-                if (contentType && contentType.includes('application/json')) {
-                    responseData = await response.json();
-                } else {
-                    responseData = await response.text();
-                }
-
-                showResponse(response.ok, response.status, responseData);
-
-            } catch (error) {
-                // Menangani error jaringan atau CORS
-                showResponse(false, 'Network/CORS Error', {
-                    error: error.message,
-                    info: 'Pastikan koneksi internet aktif dan server mengizinkan CORS dari origin ini.'
-                });
-            } finally {
-                setLoading(false);
-            }
-        });
-
-        // Tombol untuk menutup kotak hasil
-        clearResponseBtn.addEventListener('click', () => {
-            responseContainer.classList.add('hidden');
-        });
-    </script>
+    window.addEventListener("beforeunload", () => {
+      stopRealtime?.();
+    }, { once: true });
+  </script>
 </body>
 </html>
