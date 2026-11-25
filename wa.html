@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp API Messenger</title>
+    <!-- Menggunakan Tailwind CSS untuk styling yang cepat, modern, dan responsif -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Menggunakan Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        wa: {
+                            teal: '#008069',
+                            darkTeal: '#006e5a',
+                            bg: '#efeae2',
+                            outgoing: '#d9fdd3',
+                            incoming: '#ffffff',
+                            blueTick: '#53bdeb'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-200 text-slate-800 h-[100dvh] w-full flex justify-center overflow-hidden select-none sm:py-4">
+
+    <!-- Mobile App Container (Full screen di HP, frame mobile di Desktop) -->
+    <div class="w-full max-w-md h-full bg-wa-bg sm:rounded-3xl sm:shadow-2xl flex flex-col overflow-hidden relative border-x border-slate-300 sm:border">
+
+        <!-- Top App Bar (Gaya Header WhatsApp) -->
+        <header class="bg-wa-teal text-white px-3 py-2.5 flex items-center justify-between shadow-md z-20 shrink-0">
+            <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                <!-- Avatar Kontak -->
+                <div class="w-10 h-10 rounded-full bg-emerald-100/20 flex items-center justify-center shrink-0 border border-white/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                
+                <!-- Input Nomor Tujuan Langsung di Header -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1">
+                        <span class="text-xs text-emerald-200 font-medium">+</span>
+                        <input 
+                            type="tel" 
+                            id="to" 
+                            value="6282311155579"
+                            placeholder="Nomor tujuan (628...)"
+                            aria-label="Nomor Tujuan"
+                            class="bg-transparent text-white font-semibold text-base w-full focus:outline-none focus:bg-white/10 rounded px-1 -ml-1 transition placeholder-emerald-200/70"
+                        >
+                    </div>
+                    <p id="statusSubtitle" class="text-[11px] text-emerald-100 truncate">online • ketuk nomor untuk ubah</p>
+                </div>
+            </div>
+
+            <!-- Tombol Pengaturan API (Drawer Toggle) -->
+            <button 
+                type="button" 
+                id="toggleSettingsBtn"
+                title="Pengaturan API"
+                class="p-2 rounded-full hover:bg-white/10 active:bg-white/20 transition shrink-0 ml-1"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- Panel Pengaturan API (Slide Down) -->
+        <div id="settingsDrawer" class="hidden bg-white border-b border-slate-200 p-4 shadow-lg z-10 shrink-0 space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">Konfigurasi Supabase API</h2>
+                <button type="button" id="closeSettingsBtn" class="text-xs text-wa-teal font-medium hover:underline">Selesai</button>
+            </div>
+            <div>
+                <label for="endpoint" class="block text-xs font-medium text-slate-600 mb-1">Endpoint URL</label>
+                <input 
+                    type="url" 
+                    id="endpoint" 
+                    value="https://axednjikcambzbkxyqpp.supabase.co/functions/v1/trx-send-messages"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-wa-teal"
+                >
+            </div>
+            <div>
+                <label for="apikey" class="block text-xs font-medium text-slate-600 mb-1">API Key</label>
+                <input 
+                    type="text" 
+                    id="apikey" 
+                    value="sb_publishable_Vysddy5_b0uZ3iKgnkDTIw_X5O1pBEd"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-wa-teal"
+                >
+            </div>
+        </div>
+
+        <!-- Area Chat (Scrollable) -->
+        <main id="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col select-text">
+            <!-- Banner Info Enkripsi / API (Gaya WhatsApp System Notice) -->
+            <div class="mx-auto max-w-[85%] bg-[#ffeecd] text-slate-700 text-[11px] text-center px-3 py-1.5 rounded-xl shadow-sm my-1 leading-snug">
+                🔒 Pesan dikirim langsung melalui Supabase Edge Function. Ketuk angka di bagian atas untuk mengubah nomor tujuan.
+            </div>
+            
+            <!-- Riwayat gelembung chat akan muncul di sini secara dinamis -->
+        </main>
+
+        <!-- Bottom Input Bar (Gaya WhatsApp) -->
+        <footer class="p-2 bg-wa-bg flex items-end gap-2 shrink-0">
+            <form id="messageForm" class="flex-1 flex items-end gap-2">
+                <!-- Kotak Ketik Pesan -->
+                <div class="flex-1 bg-white rounded-3xl shadow-sm flex items-center px-4 py-2 min-h-[46px]">
+                    <textarea 
+                        id="message" 
+                        rows="1" 
+                        placeholder="Ketik pesan"
+                        required
+                        class="w-full bg-transparent text-slate-800 text-[15px] focus:outline-none resize-none max-h-28 leading-normal"
+                    >Halo, saya menerima pesan tersebut.</textarea>
+                </div>
+
+                <!-- Tombol Kirim Bulat Khas WhatsApp -->
+                <button 
+                    type="submit" 
+                    id="submitBtn"
+                    aria-label="Kirim Pesan"
+                    class="w-[46px] h-[46px] rounded-full bg-wa-teal hover:bg-wa-darkTeal active:scale-95 text-white shadow-md flex items-center justify-center shrink-0 transition cursor-pointer"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                    </svg>
+                </button>
+            </form>
+        </footer>
+
+    </div>
+
+    <script>
+        // Referensi Elemen DOM
+        const form = document.getElementById('messageForm');
+        const messageInput = document.getElementById('message');
+        const toInput = document.getElementById('to');
+        const chatContainer = document.getElementById('chatContainer');
+        const statusSubtitle = document.getElementById('statusSubtitle');
+        const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const settingsDrawer = document.getElementById('settingsDrawer');
+
+        // Toggle Drawer Pengaturan API
+        toggleSettingsBtn.addEventListener('click', () => {
+            settingsDrawer.classList.toggle('hidden');
+        });
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsDrawer.classList.add('hidden');
+        });
+
+        // Auto-resize tinggi textarea saat mengetik
+        function autoResizeTextarea() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 112) + 'px';
+        }
+        messageInput.addEventListener('input', autoResizeTextarea);
+        // Jalankan saat awal load agar teks default pas
+        window.addEventListener('DOMContentLoaded', autoResizeTextarea);
+
+        // Kirim dengan tombol Enter (tanpa Shift) di desktop
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // Helper mendapatkan jam saat ini (format HH:MM)
+        function getCurrentTime() {
+            const now = new Date();
+            return now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Helper escape HTML untuk mencegah XSS pada tampilan chat
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
+        // Menambahkan Gelembung Pesan Keluar (User)
+        function appendOutgoingBubble(recipient, text) {
+            const bubbleId = 'msg-' + Date.now();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex flex-col items-end w-full';
+            
+            wrapper.innerHTML = `
+                <div class="max-w-[82%] bg-wa-outgoing text-slate-900 rounded-2xl rounded-tr-sm px-3.5 py-2 shadow-sm relative">
+                    <div class="text-[10px] font-semibold text-emerald-800 mb-0.5">Ke: +${escapeHTML(recipient)}</div>
+                    <p class="text-[14.5px] leading-snug whitespace-pre-wrap break-words">${escapeHTML(text)}</p>
+                    <div class="flex items-center justify-end gap-1 mt-1 -mb-0.5">
+                        <span class="text-[10px] text-slate-500">${getCurrentTime()}</span>
+                        <!-- Ikon Status (Awalnya jam/pending) -->
+                        <span id="${bubbleId}-tick" class="text-slate-400">
+                            <svg class="w-3.5 h-3.5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return bubbleId;
+        }
+
+        // Memperbarui Ikon Centang pada Pesan Keluar
+        function updateBubbleStatus(bubbleId, isSuccess) {
+            const tickEl = document.getElementById(`${bubbleId}-tick`);
+            if (!tickEl) return;
+
+            if (isSuccess) {
+                // Centang dua biru khas WhatsApp
+                tickEl.className = 'text-wa-blueTick';
+                tickEl.innerHTML = `
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2 12l5 5L17 7M7 12l5 5L22 7" />
+                    </svg>
+                `;
+            } else {
+                // Ikon seru merah jika gagal
+                tickEl.className = 'text-rose-500';
+                tickEl.innerHTML = `
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+                    </svg>
+                `;
+            }
+        }
+
+        // Menambahkan Gelembung Balasan Server (Log Response JSON)
+        function appendServerReplyBubble(isSuccess, statusCode, data) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex flex-col items-start w-full';
+            
+            const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+            const badgeColor = isSuccess ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+            const badgeText = isSuccess ? `✓ API Response (${statusCode})` : `✕ API Error (${statusCode})`;
+
+            wrapper.innerHTML = `
+                <div class="max-w-[85%] bg-wa-incoming text-slate-800 rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm border border-slate-100">
+                    <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md mb-1.5 ${badgeColor}">
+                        ${badgeText}
+                    </span>
+                    <pre class="text-[11px] font-mono bg-slate-900 text-slate-100 p-2.5 rounded-xl overflow-x-auto leading-relaxed">${escapeHTML(formattedData)}</pre>
+                    <div class="text-right mt-1 -mb-0.5">
+                        <span class="text-[10px] text-slate-400">${getCurrentTime()}</span>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Proses Pengiriman Pesan
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const apikey = document.getElementById('apikey').value.trim();
+            const to = toInput.value.trim().replace(/[^0-9]/g, ''); // Pastikan hanya angka
+            const message = messageInput.value.trim();
+
+            if (!to) {
+                toInput.focus();
+                statusSubtitle.textContent = '⚠️ Masukkan nomor tujuan terlebih dahulu!';
+                statusSubtitle.classList.add('text-amber-200');
+                return;
+            }
+            if (!message) return;
+
+            // Reset input pesan agar terasa seperti aplikasi chat sungguhan
+            messageInput.value = '';
+            autoResizeTextarea();
+            statusSubtitle.textContent = 'mengirim pesan...';
+            statusSubtitle.classList.remove('text-amber-200');
+
+            // Tampilkan bubble pesan keluar
+            const bubbleId = appendOutgoingBubble(to, message);
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': apikey
+                    },
+                    body: JSON.stringify({
+                        to: to,
+                        message: message
+                    })
+                });
+
+                const contentType = response.headers.get('content-type');
+                let responseData;
+                if (contentType && contentType.includes('application/json')) {
+                    responseData = await response.json();
+                } else {
+                    responseData = await response.text();
+                }
+
+                updateBubbleStatus(bubbleId, response.ok);
+                appendServerReplyBubble(response.ok, response.status, responseData);
+
+            } catch (error) {
+                updateBubbleStatus(bubbleId, false);
+                appendServerReplyBubble(false, 'Network Error', {
+                    error: error.message,
+                    hint: 'Periksa koneksi internet atau konfigurasi CORS pada Supabase Edge Function.'
+                });
+            } finally {
+                statusSubtitle.textContent = 'online • ketuk nomor untuk ubah';
+            }
+        });
+    </script>
+</body>
+</html>
