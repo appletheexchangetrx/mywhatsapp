@@ -2,16 +2,21 @@ function messageKey(message) {
   if (message?.id != null && message.id !== "") return "id:" + message.id;
   if (message?.wamid) return "wamid:" + message.wamid;
 
-  // Fallback fingerprint for legacy rows without a database or WhatsApp ID.
-  // Identical payloads with identical timestamps cannot be distinguished safely.
+  // Stable fallback for legacy rows without a database or WhatsApp ID.
+  // JSON encoding avoids delimiter collisions between field values.
   const phone = message?.direction === "outbound"
     ? (message?.recipient_phone || message?.from_phone || "")
     : (message?.from_phone || "");
   const timestamp = message?.message_timestamp || message?.created_at || "";
   const body = message?.text_body || "";
   const type = message?.message_type || "";
-  if (!phone && !timestamp && !body && !type) return null;
-  return ["fallback", phone, message?.direction || "", timestamp, type, body].join(":");
+  const fallback = [phone, message?.direction || "", timestamp, type, body];
+  if (fallback.some((value) => value !== "")) {
+    return "fallback:" + JSON.stringify(fallback);
+  }
+
+  // Do not silently discard records with an unfamiliar shape.
+  return "fallback-json:" + JSON.stringify(message ?? null);
 }
 
 export function mergeMessages(existing = [], incoming = []) {
@@ -19,7 +24,6 @@ export function mergeMessages(existing = [], incoming = []) {
   // Incoming is loaded first so already-observed realtime rows win fetch races.
   for (const message of [...incoming, ...existing]) {
     const key = messageKey(message);
-    if (!key) continue;
     merged.set(key, { ...(merged.get(key) || {}), ...message });
   }
   return [...merged.values()].sort((a, b) => {
@@ -32,8 +36,6 @@ export function mergeMessages(existing = [], incoming = []) {
 export function upsertMessage(messages = [], incoming) {
   if (!incoming) return [...messages];
   const key = messageKey(incoming);
-  if (!key) return [...messages, incoming];
-
   const index = messages.findIndex((message) => messageKey(message) === key);
   if (index < 0) return mergeMessages(messages, [incoming]);
   return mergeMessages(messages.map((message, currentIndex) =>
@@ -43,6 +45,5 @@ export function upsertMessage(messages = [], incoming) {
 export function removeMessage(messages = [], target) {
   if (!target) return [...messages];
   const targetKey = messageKey(target);
-  if (!targetKey) return [...messages];
   return messages.filter((message) => messageKey(message) !== targetKey);
 }
