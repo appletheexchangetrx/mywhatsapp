@@ -80,6 +80,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         },
       };
       payload = buildInteractivePayload(to, productsInteractive);
+    } else if (path.endsWith("/messages/product-carousel")) {
+      const carouselInteractive: JsonObject = {
+        type: "carousel",
+        body: { text: body.body },
+        action: { cards: body.cards },
+      };
+      payload = buildInteractivePayload(to, carouselInteractive);
     } else {
       payload = buildGenericPayload(to, body);
     }
