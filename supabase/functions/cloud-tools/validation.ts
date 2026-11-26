@@ -128,8 +128,8 @@ function validateProductList(interactive: JsonObject): void {
   if (interactive.footer !== undefined) validateTextObject(interactive.footer, "interactive.footer", 60);
   if (!isObject(interactive.action)) throw new RequestValidationError("Product-list messages require an action object.");
   requiredString(interactive.action.catalog_id, "interactive.action.catalog_id", 128);
-  if (!Array.isArray(interactive.action.sections) || interactive.action.sections.length < 1 || interactive.action.sections.length > 10) {
-    throw new RequestValidationError("Product-list messages require 1–10 sections.");
+  if (!Array.isArray(interactive.action.sections) || interactive.action.sections.length < 1) {
+    throw new RequestValidationError("Product-list messages require at least one section.");
   }
   let totalProducts = 0;
   for (const [sectionIndex, section] of interactive.action.sections.entries()) {
