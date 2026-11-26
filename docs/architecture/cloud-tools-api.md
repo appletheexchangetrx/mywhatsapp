@@ -17,6 +17,7 @@ https://<project-ref>.supabase.co/functions/v1/cloud-tools
 | POST | `/messages/catalog` | Open the connected Meta catalog |
 | POST | `/messages/product` | Single catalog product |
 | POST | `/messages/products` | Multi-product list |
+| POST | `/messages/product-carousel` | Interactive product carousel |
 | POST | `/messages` | Generic Cloud API message payload |
 
 All routes require `to` as an international WhatsApp recipient number. The function constructs `messaging_product` and `recipient_type`; callers cannot override these envelope fields.

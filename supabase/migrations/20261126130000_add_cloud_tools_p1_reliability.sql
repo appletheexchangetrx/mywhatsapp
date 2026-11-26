@@ -27,6 +27,8 @@ create table if not exists public.trx_message_status_events (
   unique (wamid, status, status_timestamp)
 );
 
+alter table public.trx_messages add column if not exists status_timestamp timestamptz;
+
 create index if not exists trx_message_status_events_wamid_timestamp_idx
   on public.trx_message_status_events (wamid, status_timestamp desc);
 
@@ -39,9 +41,9 @@ as $$
   select case lower(p_status)
     when 'accepted' then 0
     when 'sent' then 1
-    when 'failed' then 2
     when 'delivered' then 2
-    when 'read' then 3
+    when 'failed' then 3
+    when 'read' then 4
     else 0
   end;
 $$;
@@ -67,13 +69,14 @@ begin
 
   update public.trx_messages
      set status = p_status,
+         status_timestamp = p_status_timestamp,
          error_details = p_error_details
    where wamid = p_wamid
      and (
        public.trx_message_status_rank(p_status) > public.trx_message_status_rank(coalesce(status, 'accepted'))
        or (
          public.trx_message_status_rank(p_status) = public.trx_message_status_rank(coalesce(status, 'accepted'))
-         and coalesce(message_timestamp, '-infinity'::timestamptz) <= p_status_timestamp
+         and coalesce(status_timestamp, '-infinity'::timestamptz) <= p_status_timestamp
          and lower(coalesce(status, '')) not in ('read')
        )
      );
@@ -125,8 +128,8 @@ begin
   if found then
     update public.trx_messages
        set status = v_event.status,
-           error_details = v_event.error_details,
-           message_timestamp = greatest(coalesce(message_timestamp, v_event.status_timestamp), v_event.status_timestamp)
+           status_timestamp = v_event.status_timestamp,
+           error_details = v_event.error_details
      where wamid = p_wamid
        and public.trx_message_status_rank(v_event.status) >= public.trx_message_status_rank(coalesce(status, 'accepted'));
   end if;
