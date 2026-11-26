@@ -1,27 +1,23 @@
-# Deploy only the public web application to Pages.
+# Validate every PR. Deploy the public web application only from main/manual runs.
 # Backend source under supabase/ must never be copied into the Pages artifact.
 name: Deploy static content to Pages
 
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: "pages"
+  group: "pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}"
   cancel-in-progress: false
 
 jobs:
-  validate-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,15 +94,34 @@ jobs:
           missing = [key for key in required if key not in manifest]
           if missing:
               raise SystemExit(f"Manifest missing required fields: {missing}")
-          for path in ["sw.js", "assets/icons/app-icon.svg", "index.html"]:
+          for path in ["sw.js", "assets/icons/app-icon.svg", "index.html", "src/js/app.js"]:
               if not Path(path).is_file():
                   raise SystemExit(f"Required PWA file missing: {path}")
           PY
+
+      - name: Test frontend state modules
+        run: node --test tests/*.test.mjs
+
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Assemble public site artifact
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p _site
