@@ -141,7 +141,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           : Date.now() + 60_000;
         const retryAfterAt = new Date(Number.isFinite(retryAt) ? retryAt : Date.now() + 60_000).toISOString();
         try { await setSendRequestState(idempotencyKey, "retryable", { ...error.details, retry_after_at: retryAfterAt }); } catch (stateError) { console.error("Could not persist retryable send state", String(stateError)); }
-        const retryHeaders = error.retryAfter ? { "Retry-After": error.retryAfter } : {};
+        const retryHeaders: Record<string, string> = error.retryAfter ? { "Retry-After": error.retryAfter } : {};
         return json({ error: "Meta explicitly rejected this request due to rate limiting. Retry with the same Idempotency-Key after the indicated delay.", status: "retryable", retry_after: error.retryAfter }, 429, retryHeaders);
       }
     }
