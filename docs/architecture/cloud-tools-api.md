@@ -30,7 +30,7 @@ Send an `Idempotency-Key` header (1–200 characters) for every logical send ope
 - Reusing the key with the same payload returns the stored result after success; reusing it with a different payload returns HTTP 409.
 - A request still being processed returns HTTP 202 and is not sent again.
 - A Meta 4xx rejection is recorded as `failed`; a transport failure or Meta 5xx is recorded as `unknown` and is never automatically resent.
-- If Meta accepted the message but saving `trx_messages` failed, the request is `accepted_unstored`; it is not resent. The WAMID is returned for reconciliation.
+- If Meta accepted the message but saving `trx_messages` failed, the request is `accepted_unstored`; it is not resent. The WAMID and Meta response are retained, and a retry with the same key attempts database reconciliation without calling Meta again.
 - If the header is omitted, the server generates a one-request key. Clients that need safe retry behavior must supply and persist their own key.
 
 ## Text

@@ -2,9 +2,6 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { JsonObject, MetaMessagePayload } from "./types.ts";
 
 export class IdempotencyConflictError extends Error {}
-export class DuplicateRequestInProgressError extends Error {
-  constructor(readonly state: string) { super("An identical request is already being processed."); }
-}
 
 function getDatabase(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL");
