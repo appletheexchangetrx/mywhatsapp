@@ -77,7 +77,10 @@ export async function storeOutboundMessage(
     },
   };
 
-  const { error } = await db.from("trx_messages").insert(row);
+  const { error } = await db.from("trx_messages").upsert(row, {
+    onConflict: "wamid",
+    ignoreDuplicates: true,
+  });
   if (error) {
     console.error("Message accepted by Meta but failed to save", {
       code: error.code,
