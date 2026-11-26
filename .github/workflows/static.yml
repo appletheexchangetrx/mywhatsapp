@@ -1,4 +1,4 @@
-# Deploy only the public web application to GitHub Pages.
+# Deploy only the public web application to Pages.
 # Backend source under supabase/ must never be copied into the Pages artifact.
 name: Deploy static content to Pages
 
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  validate-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -26,15 +26,78 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate Service Worker syntax
+        run: node --check sw.js
+
+      - name: Validate JavaScript modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --input-type=module --check < "$file"
+          done < <(find assets/js src/js -type f -name '*.js' -print0)
+
+      - name: Validate inline JavaScript in HTML
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          source = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script\\b([^>]*)>(.*?)</script\\s*>", source, re.I | re.S)
+          inline_count = 0
+          for index, (attributes, body) in enumerate(scripts):
+              if re.search(r"\\bsrc\\s*=", attributes, re.I) or not body.strip():
+                  continue
+              suffix = ".mjs" if re.search(r"type\\s*=\\s*['\\\"]module['\\\"]", attributes, re.I) else ".js"
+              path = Path(f"/tmp/inline-{index}{suffix}")
+              path.write_text(body, encoding="utf-8")
+              inline_count += 1
+          print(f"Extracted {inline_count} inline script(s) for Node syntax validation.")
+          PY
+          for file in /tmp/inline-*; do
+            [ -f "$file" ] || continue
+            if [[ "$file" == *.mjs ]]; then
+              node --check "$file"
+            else
+              node --check "$file"
+            fi
+          done
+
+      - name: Validate PWA manifest and required assets
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("manifest.webmanifest").read_text(encoding="utf-8"))
+          required = ["name", "short_name", "start_url", "display", "icons"]
+          missing = [key for key in required if key not in manifest]
+          if missing:
+              raise SystemExit(f"Manifest missing required fields: {missing}")
+          for path in ["sw.js", "assets/icons/app-icon.svg", "index.html"]:
+              if not Path(path).is_file():
+                  raise SystemExit(f"Required PWA file missing: {path}")
+          PY
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Assemble public site artifact
         run: |
+          set -euo pipefail
           mkdir -p _site
           cp index.html manifest.webmanifest sw.js _site/
           cp -R assets src wa _site/
           touch _site/.nojekyll
+          if find _site -type d -name supabase | grep -q .; then
+            echo "Backend source must not be included in the Pages artifact."
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
