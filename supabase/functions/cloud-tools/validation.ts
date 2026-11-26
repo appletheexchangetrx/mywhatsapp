@@ -22,6 +22,19 @@ export function requiredString(value: unknown, field: string, maxLength = 4096):
   return result;
 }
 
+function validateHttpUrl(value: unknown, field: string): string {
+  const url = requiredString(value, field);
+  try {
+    const parsed = new URL(url);
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.hostname) {
+      throw new Error("Unsupported URL protocol or missing hostname.");
+    }
+  } catch {
+    throw new RequestValidationError(`Field '${field}' must be an absolute HTTP(S) URL.`);
+  }
+  return url;
+}
+
 export function normalizeRecipient(value: unknown): string {
   if (typeof value !== "string") {
     throw new RequestValidationError("Field 'to' must be a WhatsApp phone number.");
@@ -89,7 +102,7 @@ function validateButtons(interactive: JsonObject): void {
         throw new RequestValidationError(`Button ${mediaType} headers require exactly one non-empty media.id or media.link.`);
       }
       if (hasId) requiredString(media.id, `interactive.header.${mediaType}.id`);
-      if (hasLink) requiredString(media.link, `interactive.header.${mediaType}.link`);
+      if (hasLink) validateHttpUrl(media.link, `interactive.header.${mediaType}.link`);
     } else {
       throw new RequestValidationError("Button header type must be text, image, video, or document.");
     }
