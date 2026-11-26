@@ -11,21 +11,23 @@ Deno.serve(async req=>{
  let vapid:JsonWebKey;try{vapid=JSON.parse(raw) as JsonWebKey}catch{return json({error:"VAPID_PRIVATE_KEY must contain a JSON JWK"},500)}
  try{
   const db=admin();
+  const {data:subs,error:subError}=await db.from("trx_push_subscriptions").select("id,endpoint,p256dh,auth").eq("enabled",true);
+  if(subError)throw subError;
+  // Do not claim or consume queued events until at least one device is registered.
+  if(!subs?.length)return json({success:true,processed:0,waitingForSubscription:true});
   const {data:events,error:claimError}=await db.rpc("claim_trx_push_outbox",{batch_size:20});
   if(claimError)throw claimError;
   if(!events?.length)return json({success:true,processed:0});
-  const {data:subs,error:subError}=await db.from("trx_push_subscriptions").select("id,endpoint,p256dh,auth").eq("enabled",true);
-  if(subError)throw subError;
   let delivered=0,failed=0;
   for(const event of events){
    if(!subs?.length){await db.from("trx_push_outbox").update({status:"sent",sent_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",event.id);continue}
-   let retry=false;
+   let retry=false,deliveredForEvent=0;
    for(const sub of subs){
     try{
      await send({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
       JSON.stringify({title:"WhatsApp",body:"Anda menerima pesan baru.",url:"/wa/"}),
       {vapid,subscriber:Deno.env.get("VAPID_SUBJECT")||"mailto:admin@example.com",ttl:60});
-     delivered++;
+     delivered++;deliveredForEvent++;
     }catch(error){
      const e=error as {statusCode?:number;permanent?:boolean};
      if(e.permanent||e.statusCode===404||e.statusCode===410)await db.from("trx_push_subscriptions").update({enabled:false,updated_at:new Date().toISOString()}).eq("id",sub.id);
@@ -35,7 +37,8 @@ Deno.serve(async req=>{
    }
    const now=new Date(),attempts=Number(event.attempts||0)+1;
    if(retry){await db.from("trx_push_outbox").update({status:attempts>=8?"failed":"pending",attempts,next_attempt_at:new Date(now.getTime()+Math.min(60,2**attempts)*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);failed++}
-   else await db.from("trx_push_outbox").update({status:"sent",sent_at:now.toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+   else if(deliveredForEvent>0) await db.from("trx_push_outbox").update({status:"sent",sent_at:now.toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+   else await db.from("trx_push_outbox").update({status:"pending",attempts,next_attempt_at:new Date(now.getTime()+5*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
   }
   return json({success:true,processed:events.length,delivered,failed});
  }catch(error){console.error("Push dispatch failed",String(error));return json({error:"Push dispatcher failed"},500)}
