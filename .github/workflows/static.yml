@@ -46,27 +46,46 @@ jobs:
       - name: Validate inline JavaScript in HTML
         run: |
           python3 - <<'PY'
+          from html.parser import HTMLParser
           from pathlib import Path
-          import re
-          source = Path("index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script\\b([^>]*)>(.*?)</script\\s*>", source, re.I | re.S)
-          inline_count = 0
-          for index, (attributes, body) in enumerate(scripts):
-              if re.search(r"\\bsrc\\s*=", attributes, re.I) or not body.strip():
+
+          class InlineScriptExtractor(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.scripts = []
+                  self.current = None
+
+              def handle_starttag(self, tag, attrs):
+                  if tag.lower() != "script":
+                      return
+                  attributes = dict(attrs)
+                  if "src" not in attributes:
+                      self.current = {"type": attributes.get("type", ""), "body": []}
+
+              def handle_data(self, data):
+                  if self.current is not None:
+                      self.current["body"].append(data)
+
+              def handle_endtag(self, tag):
+                  if tag.lower() == "script" and self.current is not None:
+                      self.scripts.append(self.current)
+                      self.current = None
+
+          parser = InlineScriptExtractor()
+          parser.feed(Path("index.html").read_text(encoding="utf-8"))
+          count = 0
+          for index, script in enumerate(parser.scripts):
+              body = "".join(script["body"])
+              if not body.strip():
                   continue
-              suffix = ".mjs" if re.search(r"type\\s*=\\s*['\\\"]module['\\\"]", attributes, re.I) else ".js"
-              path = Path(f"/tmp/inline-{index}{suffix}")
-              path.write_text(body, encoding="utf-8")
-              inline_count += 1
-          print(f"Extracted {inline_count} inline script(s) for Node syntax validation.")
+              suffix = ".mjs" if script["type"] == "module" else ".js"
+              Path(f"/tmp/inline-{index}{suffix}").write_text(body, encoding="utf-8")
+              count += 1
+          print(f"Extracted {count} inline script(s) for Node syntax validation.")
           PY
           for file in /tmp/inline-*; do
             [ -f "$file" ] || continue
-            if [[ "$file" == *.mjs ]]; then
-              node --check "$file"
-            else
-              node --check "$file"
-            fi
+            node --check "$file"
           done
 
       - name: Validate PWA manifest and required assets
