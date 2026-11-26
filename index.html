@@ -10,7 +10,6 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icons/whatsapp-inbox.svg" type="image/svg+xml">
   <title>WhatsApp Inbox · Apple The Exchange TRX</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -748,7 +747,10 @@
             }
             return;
           }
-          if (eventType === "INSERT" && record?.direction === "inbound") {\n            void playIncomingMessageSound();\n          }\n          upsertMessage(record);
+          if (eventType === "INSERT" && record?.direction === "inbound") {
+            void playIncomingMessageSound();
+          }
+          upsertMessage(record);
         },
         onStatus: (status) => {
           if (status === "SUBSCRIBED") setConnection("Realtime aktif", "#25d366");
