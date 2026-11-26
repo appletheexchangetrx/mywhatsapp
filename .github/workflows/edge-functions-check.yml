@@ -34,3 +34,8 @@ jobs:
           deno check supabase/functions/cloud-tools/index.ts
           deno check supabase/functions/trx-webhook/index.ts
           deno check supabase/functions/trx-push-dispatch/index.ts
+          deno check supabase/functions/trx-send-messages/index.ts
+          deno check supabase/functions/trx-push-config/index.ts
+          deno check supabase/functions/trx-push-subscribe/index.ts
+          deno check supabase/functions/trx-push-unsubscribe/index.ts
+          deno check supabase/functions/trx-vapid-generator/index.ts
