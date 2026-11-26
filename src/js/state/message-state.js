@@ -1,26 +1,55 @@
-function messageKey(message) {
-  return message?.id || message?.wamid || null;
+function messageKeys(message) {
+  const keys = [];
+  if (message?.id) keys.push(`id:${message.id}`);
+  if (message?.wamid) keys.push(`wamid:${message.wamid}`);
+  return keys;
+}
+
+function findMessageIndex(messages, target) {
+  return messages.findIndex((message) =>
+    (target?.id && message?.id === target.id) ||
+    (target?.wamid && message?.wamid === target.wamid)
+  );
 }
 
 export function mergeMessages(existing = [], incoming = []) {
-  const merged = new Map();
+  const merged = [];
+  const indexByKey = new Map();
 
   for (const message of [...existing, ...incoming]) {
-    const key = messageKey(message);
-    if (!key) continue;
-    merged.set(key, { ...(merged.get(key) || {}), ...message });
+    const keys = messageKeys(message);
+    if (!keys.length) continue;
+
+    let index;
+    for (const key of keys) {
+      if (indexByKey.has(key)) {
+        index = indexByKey.get(key);
+        break;
+      }
+    }
+
+    if (index === undefined) {
+      index = merged.length;
+      merged.push({ ...message });
+    } else {
+      merged[index] = { ...merged[index], ...message };
+    }
+
+    for (const key of messageKeys(merged[index])) {
+      indexByKey.set(key, index);
+    }
   }
 
-  return [...merged.values()];
+  return merged;
 }
 
 export function upsertMessage(messages = [], incoming) {
   if (!incoming) return [...messages];
 
-  const key = messageKey(incoming);
-  if (!key) return [...messages, incoming];
+  const keys = messageKeys(incoming);
+  if (!keys.length) return [...messages, incoming];
 
-  const index = messages.findIndex((message) => messageKey(message) === key);
+  const index = findMessageIndex(messages, incoming);
   if (index < 0) return [...messages, incoming];
 
   return messages.map((message, currentIndex) =>

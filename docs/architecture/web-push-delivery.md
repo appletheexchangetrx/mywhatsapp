@@ -45,17 +45,17 @@ The subscription endpoint is stored in `trx_push_subscriptions`. Disable removes
 
 ## Current activation state
 
-The original 15 pending `new_message` events are intentionally preserved. They have not been claimed, modified, or delivered by the activation tests.
+The original 15 pending `new_message` events remain preserved. Additional inbound events have since entered the outbox; the latest audit snapshot showed 21 pending rows, with attempts between 2 and 4.
 
-The VAPID keypair has been provisioned in Vault and verified by both Edge Functions. `trx-push-config` returns HTTP 200 with the public key. A no-subscription dispatcher smoke test returns HTTP 200 with `waitingForSubscription: true`, confirming it does not claim pending events before a browser is registered.
+The first browser subscription was later disabled after a permanent provider response. A newer subscription was registered, but dispatcher logs still showed delivery failures without a usable status code or error message. The exact cause is not yet confirmed. See [Push delivery diagnostics](./push-delivery-diagnostics.md). The dispatcher keeps pending rows unclaimed when no enabled subscription exists, and retries transient failures without deleting or force-marking events as sent.
 
-The remaining activation step is a user-initiated browser subscription. Once at least one subscription is enabled, the next scheduled dispatcher run will process pending events, including the 15 historical events, as explicitly requested.
+The VAPID keypair is stored in Vault and the public config endpoint was observed returning HTTP 200. Successful end-to-end delivery still requires a current browser subscription and a confirmed provider send followed by Service Worker display.
 
 
 ## Notification sound and vibration
 
 - When the inbox page is open and focused, newly inserted inbound messages play a short two-tone Web Audio alert. This avoids playing both the in-app tone and the operating-system notification sound for the same visible message.
-- The inbox header provides a per-browser ON/OFF preference for the in-app sound. The preference is stored in browser local storage. Enabling sound primes the Web Audio context from the user's click, as required by browser autoplay policies.
+- The inbox header provides a per-browser ON/OFF preference for the in-app sound. The preference is stored in browser local storage. The app also attempts to prime the Web Audio context on the first pointer or keyboard interaction while sound is enabled, and when the user explicitly enables sound, as required by browser autoplay policies.
 - When the PWA is closed or not focused, the Service Worker displays a system notification with `silent: false` and a vibration pattern where supported. The actual sound is the browser/operating-system notification sound and follows device notification settings.
 - The standard Web Notifications API does not expose a cross-browser option to select a custom audio file or set notification volume. Volume is controlled by the device/browser notification settings.
 - Vibration is best-effort and depends on browser, operating system, and device support.
