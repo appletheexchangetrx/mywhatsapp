@@ -32,3 +32,11 @@ The following repository-managed updates were deployed after Deno tests and type
 | `trx-push-dispatch` | 13 | `fe5b97c79433102a41df9f980eec806ee9aff18813d3c0c581d7c8262ff9242f` |
 
 All three deployments use `verify_jwt=false`, consistent with the existing project configuration and the public frontend invocation model. Meta access credentials remain server-side in Edge Function Secrets.
+
+### Follow-up deployment — Commerce validation correction
+
+| Function | Deployed version | Deployed source SHA-256 |
+|---|---:|---|
+| `cloud-tools` | 2 | `5df57ccc8d88f5b18a18bb49898f4a3de88ac141abd570879a916322dce49fb9` |
+
+This version removes undocumented product-list section-count and section-title length restrictions while preserving Meta's documented 30-product maximum.
