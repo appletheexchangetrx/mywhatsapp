@@ -65,7 +65,7 @@ jobs:
           missing = [key for key in required if key not in manifest]
           if missing:
               raise SystemExit(f"Manifest missing required fields: {missing}")
-          for path in ["sw.js", "assets/icons/app-icon.svg", "index.html", "src/js/app.js"]:
+          for path in ["sw.js", "assets/icons/whatsapp-inbox.svg", "index.html", "src/js/app.js"]:
               if not Path(path).is_file():
                   raise SystemExit(f"Required PWA file missing: {path}")
           PY
