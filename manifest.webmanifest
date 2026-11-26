@@ -1,0 +1,19 @@
+{
+  "name": "WhatsApp Inbox · Apple The Exchange TRX",
+  "short_name": "WhatsApp Inbox",
+  "description": "WhatsApp customer conversations and notifications.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#efeae2",
+  "theme_color": "#075e54",
+  "icons": [
+    {
+      "src": "./assets/icons/whatsapp-inbox.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

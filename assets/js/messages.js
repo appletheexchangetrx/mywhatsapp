@@ -13,6 +13,9 @@ const MESSAGE_COLUMNS = [
   "direction",
   "status",
   "recipient_phone",
+  "interactive_type",
+  "context_wamid",
+  "from_user_id",
 ].join(",");
 
 export async function fetchMessages(limit = 50) {
@@ -59,7 +62,7 @@ export function subscribeToMessages({ onMessage, onStatus }) {
 
 export async function sendWhatsAppMessage(to, message) {
   const { data, error } = await supabase.functions.invoke(
-    "trx-send-messages",
+    "cloud-tools/messages/text",
     {
       body: { to, message },
     },
