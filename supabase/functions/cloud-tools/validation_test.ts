@@ -180,3 +180,85 @@ Deno.test("accepts more than ten product-list sections when total products stay 
     action: { catalog_id: "catalog_1", sections },
   });
 });
+
+Deno.test("rejects duplicate reply button IDs", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "same", title: "First" } },
+        { type: "reply", reply: { id: "same", title: "Second" } },
+      ],
+    },
+  }));
+});
+
+Deno.test("rejects duplicate reply button titles", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "first", title: "Same" } },
+        { type: "reply", reply: { id: "second", title: "Same" } },
+      ],
+    },
+  }));
+});
+
+Deno.test("validates media headers for reply buttons", () => {
+  buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "image", image: { link: "https://example.com/header.jpg" } },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "ok", title: "Continue" } }] },
+  });
+  buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "video", video: { id: "media_123" } },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "ok", title: "Continue" } }] },
+  });
+});
+
+Deno.test("rejects missing or ambiguous reply button header media references", () => {
+  for (const media of [{}, { id: "media_1", link: "https://example.com/header.jpg" }]) {
+    expectValidationError(() => buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type: "image", image: media },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "ok", title: "Continue" } }] },
+    }));
+  }
+});
+
+Deno.test("accepts reply button text and body at documented maximum lengths", () => {
+  buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "text", text: "H".repeat(60) },
+    body: { text: "B".repeat(1024) },
+    footer: { text: "F".repeat(60) },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "I".repeat(256), title: "T".repeat(20) } },
+      ],
+    },
+  });
+});
+
+Deno.test("rejects reply button fields exceeding documented maximum lengths", () => {
+  const base = {
+    type: "button",
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "id", title: "Title" } }] },
+  };
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    ...base,
+    action: { buttons: [{ type: "reply", reply: { id: "i".repeat(257), title: "Title" } }] },
+  }));
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    ...base,
+    action: { buttons: [{ type: "reply", reply: { id: "id", title: "T".repeat(21) } }] },
+  }));
+});
