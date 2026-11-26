@@ -75,10 +75,11 @@ function validateButtons(interactive: JsonObject): void {
   if (interactive.header !== undefined) {
     const header = interactive.header;
     if (!isObject(header)) throw new RequestValidationError("'interactive.header' must be an object.");
-    if (header.type === "text") {
+    const headerType = header.type;
+    if (headerType === "text") {
       requiredString(header.text, "interactive.header.text", 60);
-    } else if (["image", "video", "document"].includes(String(header.type))) {
-      const media = header[header.type];
+    } else if (headerType === "image" || headerType === "video" || headerType === "document") {
+      const media = header[headerType];
       if (!isObject(media)) {
         throw new RequestValidationError(`Button ${header.type} header requires a media object.`);
       }
