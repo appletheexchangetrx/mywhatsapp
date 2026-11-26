@@ -1,0 +1,36 @@
+name: Edge Function checks
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions-check.yml"
+  push:
+    branches: ["main", "fix/platform-remediation"]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Test cloud-tools request validation
+        run: deno test --allow-env supabase/functions/cloud-tools/validation_test.ts
+
+      - name: Type-check Edge Functions
+        run: |
+          deno check supabase/functions/cloud-tools/index.ts
+          deno check supabase/functions/trx-webhook/index.ts
+          deno check supabase/functions/trx-push-dispatch/index.ts
