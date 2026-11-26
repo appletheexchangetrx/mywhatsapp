@@ -134,3 +134,36 @@ Deno.test("rejects product carousel cards with different catalogs", () => {
     },
   }));
 });
+
+Deno.test("accepts the documented 4096-character interactive list body", () => {
+  const body = "x".repeat(4096);
+  buildInteractivePayload("6281234567890", {
+    type: "list",
+    body: { text: body },
+    action: {
+      button: "Options",
+      sections: [{ title: "Section", rows: [{ id: "row_1", title: "Option 1" }] }],
+    },
+  });
+});
+
+Deno.test("rejects a non-text list header", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "list",
+    header: { type: "image", image: { link: "https://example.com/image.jpg" } },
+    body: { text: "Choose one" },
+    action: { button: "Options", sections: [{ title: "Section", rows: [{ id: "row_1", title: "Option 1" }] }] },
+  }));
+});
+
+Deno.test("rejects product-list sections without a title", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "product_list",
+    header: { type: "text", text: "Featured products" },
+    body: { text: "Choose a product" },
+    action: {
+      catalog_id: "catalog_1",
+      sections: [{ product_items: [{ product_retailer_id: "sku_1" }] }],
+    },
+  }));
+});
