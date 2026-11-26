@@ -67,7 +67,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const suppliedKey = req.headers.get("Idempotency-Key")?.trim();
-  if (suppliedKey && (suppliedKey.length > 200 || /[\r
+  if (suppliedKey && (suppliedKey.length > 200 || /[\r\n]/.test(suppliedKey))) {
 ]/.test(suppliedKey))) {
     return json({ error: "Idempotency-Key must be 1–200 characters." }, 400);
   }
