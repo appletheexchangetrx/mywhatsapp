@@ -83,7 +83,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           const eventTime = Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString() : new Date().toISOString();
           statusUpdates++;
           try {
-            if (await recordStatusEvent(item.id, item.status, eventTime, Array.isArray(item.errors) && item.errors.length ? item.errors : null, item)) updatedStatuses++;
+            await recordStatusEvent(item.id, item.status, eventTime, Array.isArray(item.errors) && item.errors.length ? item.errors : null, item);
+            updatedStatuses++;
           } catch (error) {
             console.error("Failed to persist WhatsApp message status", String(error));
             return jsonResponse({ error: "Failed to persist message status event" }, 500);

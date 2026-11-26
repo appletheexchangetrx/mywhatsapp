@@ -21,6 +21,17 @@ https://<project-ref>.supabase.co/functions/v1/cloud-tools
 
 All routes require `to` as an international WhatsApp recipient number. The function constructs `messaging_product` and `recipient_type`; callers cannot override these envelope fields.
 
+### Idempotency and retry behavior
+
+Send an `Idempotency-Key` header (1–200 characters) for every logical send operation. Reuse the same key only when retrying that same operation.
+
+- The first request durably records its payload fingerprint before calling Meta.
+- Reusing the key with the same payload returns the stored result after success; reusing it with a different payload returns HTTP 409.
+- A request still being processed returns HTTP 202 and is not sent again.
+- A Meta 4xx rejection is recorded as `failed`; a transport failure or Meta 5xx is recorded as `unknown` and is never automatically resent.
+- If Meta accepted the message but saving `trx_messages` failed, the request is `accepted_unstored`; it is not resent. The WAMID is returned for reconciliation.
+- If the header is omitted, the server generates a one-request key. Clients that need safe retry behavior must supply and persist their own key.
+
 ## Text
 
 ```json

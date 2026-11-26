@@ -107,9 +107,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     return json({ success: true, wamid: result.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true });
   } catch (error) {
-    if (error instanceof MetaApiError) {
+    if (error instanceof MetaApiError && error.status >= 400 && error.status < 500) {
       try { await setSendRequestState(idempotencyKey, "failed", error.details); } catch (stateError) { console.error("Could not persist rejected send state", String(stateError)); }
-      return json({ error: error.message, details: error.details }, error.status >= 400 && error.status < 500 ? error.status : 502);
+      return json({ error: error.message, details: error.details }, error.status);
     }
     try { await setSendRequestState(idempotencyKey, "unknown", { message: error instanceof Error ? error.message : String(error) }); } catch (stateError) {
       console.error("Could not persist unknown send state", String(stateError));
