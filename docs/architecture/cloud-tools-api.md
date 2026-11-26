@@ -161,6 +161,128 @@ The Product Carousel is an interactive catalog message, not a media carousel. It
 - Media carousel is a different message format and is not implemented by the Product Carousel route.
 - The generic `/messages` route is for other documented Cloud API message types; Meta remains the final validator for type-specific fields not covered by the specialized routes.
 
+
+## cURL examples
+
+The examples call the Supabase Edge Function using the project's publishable key. The Meta WhatsApp access token is never sent by the browser or caller; it remains in Edge Function Secrets.
+
+```bash
+PROJECT_URL="https://axednjikcambzbkxyqpp.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="<SUPABASE_PUBLISHABLE_KEY>"
+TO="6281234567890"
+```
+
+### Text
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/text" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"'$TO'","message":"Halo, ada yang bisa kami bantu?","preview_url":false}'
+```
+
+### Interactive list
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/interactive" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to":"'$TO'",
+    "interactive":{
+      "type":"list",
+      "body":{"text":"Silakan pilih kategori."},
+      "action":{
+        "button":"Lihat kategori",
+        "sections":[{"title":"Produk","rows":[
+          {"id":"iphone","title":"iPhone"},
+          {"id":"mac","title":"Mac"}
+        ]}]
+      }
+    }
+  }'
+```
+
+### Reply buttons
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/interactive" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to":"'$TO'",
+    "interactive":{
+      "type":"button",
+      "body":{"text":"Apakah Anda ingin melanjutkan?"},
+      "action":{"buttons":[
+        {"type":"reply","reply":{"id":"yes","title":"Ya"}},
+        {"type":"reply","reply":{"id":"no","title":"Tidak"}}
+      ]}
+    }
+  }'
+```
+
+### Catalog Message
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/catalog" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"'$TO'","body":"Jelajahi katalog produk kami.","footer":"Apple The Exchange TRX"}'
+```
+
+### Single product
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/product" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"'$TO'","catalog_id":"META_CATALOG_ID","product_retailer_id":"META_CONTENT_ID","body":"Produk yang mungkin Anda sukai."}'
+```
+
+### Multi-product list
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/products" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to":"'$TO'",
+    "catalog_id":"META_CATALOG_ID",
+    "header":"Pilihan produk",
+    "body":"Pilih produk yang ingin Anda lihat.",
+    "sections":[{"title":"iPhone","product_items":[
+      {"product_retailer_id":"META_CONTENT_ID_1"},
+      {"product_retailer_id":"META_CONTENT_ID_2"}
+    ]}]
+  }'
+```
+
+### Product carousel
+
+```bash
+curl -X POST "$PROJECT_URL/functions/v1/cloud-tools/messages/product-carousel" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to":"'$TO'",
+    "body":"Produk mana yang Anda pilih?",
+    "cards":[
+      {"card_index":0,"type":"product","action":{"product_retailer_id":"META_CONTENT_ID_1","catalog_id":"META_CATALOG_ID"}},
+      {"card_index":1,"type":"product","action":{"product_retailer_id":"META_CONTENT_ID_2","catalog_id":"META_CATALOG_ID"}}
+    ]
+  }'
+```
+
+**Important:** Each cURL command sends a real WhatsApp message if the recipient and payload are valid. Use a controlled test recipient. Do not use local variant IDs as Meta retailer IDs until Commerce Manager mapping is verified.
+
 ## Persistence
 
 After Meta returns a WAMID, the function inserts one outbound row into `trx_messages`:
