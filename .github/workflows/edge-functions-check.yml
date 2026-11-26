@@ -1,14 +1,28 @@
-name: Edge Function checks
+name: Edge Function and PWA checks
 
 on:
   pull_request:
     paths:
       - "supabase/functions/**"
+      - "assets/js/**"
+      - "src/js/**"
+      - "assets/icons/**"
+      - "tests/**"
+      - "index.html"
+      - "sw.js"
+      - "manifest.webmanifest"
       - ".github/workflows/edge-functions-check.yml"
   push:
     branches: ["main", "fix/platform-remediation"]
     paths:
       - "supabase/functions/**"
+      - "assets/js/**"
+      - "src/js/**"
+      - "assets/icons/**"
+      - "tests/**"
+      - "index.html"
+      - "sw.js"
+      - "manifest.webmanifest"
       - ".github/workflows/edge-functions-check.yml"
 
 permissions:
@@ -20,6 +34,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate Service Worker syntax
+        run: node --check sw.js
+
+      - name: Validate JavaScript modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --input-type=module --check < "$file"
+          done < <(find assets/js src/js -type f -name '*.js' -print0)
+
+      - name: Test frontend state modules
+        run: node --test tests/*.test.mjs
+
+      - name: Validate PWA manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("manifest.webmanifest").read_text(encoding="utf-8"))
+          required = ["name", "short_name", "start_url", "display", "icons"]
+          missing = [key for key in required if key not in manifest]
+          if missing:
+              raise SystemExit(f"Manifest missing required fields: {missing}")
+          for path in ["sw.js", "assets/icons/app-icon.svg", "index.html", "src/js/app.js"]:
+              if not Path(path).is_file():
+                  raise SystemExit(f"Required PWA file missing: {path}")
+          PY
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
