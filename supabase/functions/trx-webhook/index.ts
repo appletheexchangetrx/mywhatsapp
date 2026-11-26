@@ -1,0 +1,146 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const headers = { "Content-Type": "application/json" };
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers });
+}
+function hexToBytes(hex: string): Uint8Array | null {
+  if (!/^[0-9a-f]{64}$/i.test(hex)) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+async function verifyMetaSignature(body: string, header: string | null, secret: string): Promise<boolean> {
+  if (!header?.startsWith("sha256=")) return false;
+  const signature = hexToBytes(header.slice(7));
+  if (!signature) return false;
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  return crypto.subtle.verify("HMAC", key, signature, new TextEncoder().encode(body));
+}
+function extractTextBody(message: Record<string, unknown>): string | null {
+  const type = String(message.type ?? "");
+  const content = message[type];
+  if (!content || typeof content !== "object") return null;
+  const item = content as Record<string, unknown>;
+  if (typeof item.body === "string") return item.body;
+  if (typeof item.caption === "string") return item.caption;
+  if (typeof item.text === "string") return item.text;
+  if (type === "interactive") {
+    const button = item.button_reply as Record<string, unknown> | undefined;
+    const list = item.list_reply as Record<string, unknown> | undefined;
+    if (typeof button?.title === "string") return button.title;
+    if (typeof list?.title === "string") return list.title;
+  }
+  return null;
+}
+function getSupabaseSecretKey(): string | null {
+  const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
+  if (raw) {
+    try {
+      const keys = JSON.parse(raw);
+      if (typeof keys.default === "string") return keys.default;
+    } catch { console.error("SUPABASE_SECRET_KEYS is not valid JSON"); }
+  }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
+}
+
+Deno.serve(async (req: Request): Promise<Response> => {
+  const url = new URL(req.url);
+  if (req.method === "GET") {
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+    const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+    if (!verifyToken) return jsonResponse({ error: "Webhook verification is not configured" }, 500);
+    if (mode === "subscribe" && token === verifyToken && challenge !== null) {
+      return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    }
+    return jsonResponse({ error: "Webhook verification failed" }, 403);
+  }
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+
+  const appSecret = Deno.env.get("META_APP_SECRET");
+  if (!appSecret) return jsonResponse({ error: "Webhook signature validation is not configured" }, 500);
+  const rawBody = await req.text();
+  if (!await verifyMetaSignature(rawBody, req.headers.get("x-hub-signature-256"), appSecret)) {
+    return jsonResponse({ error: "Invalid webhook signature" }, 401);
+  }
+
+  let payload: Record<string, unknown>;
+  try { payload = JSON.parse(rawBody); } catch { return jsonResponse({ error: "Invalid JSON payload" }, 400); }
+  if (payload.object !== "whatsapp_business_account" || !Array.isArray(payload.entry)) {
+    return jsonResponse({ error: "Unsupported webhook payload" }, 400);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const secretKey = getSupabaseSecretKey();
+  if (!supabaseUrl || !secretKey) return jsonResponse({ error: "Database connection is not configured" }, 500);
+  const supabase = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  let incomingMessages = 0;
+  let storedMessages = 0;
+  let statusUpdates = 0;
+  let updatedStatuses = 0;
+
+  for (const entry of payload.entry as Array<Record<string, unknown>>) {
+    if (!Array.isArray(entry.changes)) continue;
+    for (const change of entry.changes as Array<Record<string, unknown>>) {
+      if (change.field !== "messages" || !change.value || typeof change.value !== "object") continue;
+      const value = change.value as Record<string, unknown>;
+      const metadata = value.metadata && typeof value.metadata === "object" ? value.metadata as Record<string, unknown> : {};
+      const phoneNumberId = typeof metadata.phone_number_id === "string" ? metadata.phone_number_id : null;
+      const displayPhone = typeof metadata.display_phone_number === "string" ? metadata.display_phone_number : null;
+
+      if (Array.isArray(value.statuses)) {
+        for (const item of value.statuses as Array<Record<string, unknown>>) {
+          if (typeof item.id !== "string" || typeof item.status !== "string") continue;
+          statusUpdates++;
+          const { error } = await supabase.from("trx_messages").update({
+            status: item.status,
+            error_details: Array.isArray(item.errors) && item.errors.length ? item.errors : null,
+          }).eq("wamid", item.id);
+          if (error) {
+            console.error("Failed to update WhatsApp message status", { code: error.code, message: error.message });
+            return jsonResponse({ error: "Failed to update message status" }, 500);
+          }
+          updatedStatuses++;
+        }
+      }
+
+      if (!Array.isArray(value.messages) || value.messages.length === 0) continue;
+      const contacts = Array.isArray(value.contacts) ? value.contacts as Array<Record<string, unknown>> : [];
+      const messages = value.messages as Array<Record<string, unknown>>;
+      const rows = messages.map((message) => {
+        const from = typeof message.from === "string" ? message.from : null;
+        const wamid = typeof message.id === "string" ? message.id : null;
+        if (!from || !wamid) return null;
+        const contact = contacts.find((item) => item.wa_id === from);
+        const profile = contact?.profile && typeof contact.profile === "object" ? contact.profile as Record<string, unknown> : {};
+        const timestamp = typeof message.timestamp === "string" ? Number(message.timestamp) : NaN;
+        return {
+          wamid, from_phone: from,
+          profile_name: typeof profile.name === "string" ? profile.name : null,
+          phone_number_id: phoneNumberId, display_phone_number: displayPhone,
+          message_type: typeof message.type === "string" ? message.type : "unknown",
+          text_body: extractTextBody(message),
+          message_timestamp: Number.isFinite(timestamp) ? new Date(timestamp * 1000).toISOString() : null,
+          raw_message: message, direction: "inbound",
+        };
+      }).filter((row): row is NonNullable<typeof row> => row !== null);
+
+      incomingMessages += messages.length;
+      if (rows.length) {
+        const { error } = await supabase.from("trx_messages").upsert(rows, { onConflict: "wamid", ignoreDuplicates: true });
+        if (error) {
+          console.error("Failed to store incoming WhatsApp messages", { code: error.code, message: error.message });
+          return jsonResponse({ error: "Failed to store incoming messages" }, 500);
+        }
+        storedMessages += rows.length;
+      }
+    }
+  }
+
+  console.info("WhatsApp webhook accepted", { entries: payload.entry.length, incomingMessages, storedMessages, statusUpdates, updatedStatuses });
+  return jsonResponse({ received: true, storedMessages, statusUpdates, updatedStatuses });
+});
