@@ -8,6 +8,7 @@ Deno.serve(async req=>{
  const expected=Deno.env.get("PUSH_DISPATCH_SECRET"),supplied=req.headers.get("x-push-dispatch-secret");
  if(!expected||!supplied||supplied!==expected)return json({error:"Unauthorized"},401);
  const raw=Deno.env.get("VAPID_PRIVATE_KEY");if(!raw)return json({error:"VAPID private key is not configured"},503);
+ const vapidSubject=Deno.env.get("VAPID_SUBJECT");if(!vapidSubject)return json({error:"VAPID subject is not configured"},503);
  let vapid:JsonWebKey;try{vapid=JSON.parse(raw) as JsonWebKey}catch{return json({error:"VAPID_PRIVATE_KEY must contain a JSON JWK"},500)}
  try{
   const db=admin();
@@ -25,8 +26,8 @@ Deno.serve(async req=>{
    for(const sub of subs){
     try{
      await send({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
-      JSON.stringify({title:"WhatsApp",body:"Anda menerima pesan baru.",url:"/wa/"}),
-      {vapid,subscriber:Deno.env.get("VAPID_SUBJECT")||"mailto:admin@example.com",ttl:60});
+      JSON.stringify({title:"WhatsApp",body:"Anda menerima pesan baru.",url:"./"}),
+      {vapid,subscriber:vapidSubject,ttl:60});
      delivered++;deliveredForEvent++;
     }catch(error){
      const e=error as {statusCode?:number;permanent?:boolean};
