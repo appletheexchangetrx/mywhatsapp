@@ -1,10 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { recordStatusEvent } from "../cloud-tools/reliability-store.ts";
 
 const headers = { "Content-Type": "application/json" };
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers });
-}
+function jsonResponse(body: unknown, status = 200): Response { return new Response(JSON.stringify(body), { status, headers }); }
 function hexToBytes(hex: string): Uint8Array | null {
   if (!/^[0-9a-f]{64}$/i.test(hex)) return null;
   const out = new Uint8Array(new ArrayBuffer(hex.length / 2));
@@ -15,12 +14,10 @@ async function verifyMetaSignature(body: string, header: string | null, secret: 
   if (!header?.startsWith("sha256=")) return false;
   const signature = hexToBytes(header.slice(7));
   if (!signature) return false;
-  const keyBytes = new Uint8Array(new ArrayBuffer(new TextEncoder().encode(secret).byteLength));
-  keyBytes.set(new TextEncoder().encode(secret));
-  const bodyBytes = new Uint8Array(new ArrayBuffer(new TextEncoder().encode(body).byteLength));
-  bodyBytes.set(new TextEncoder().encode(body));
-  const key = await crypto.subtle.importKey("raw", keyBytes.buffer as ArrayBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-  return crypto.subtle.verify("HMAC", key, signature.buffer as ArrayBuffer, bodyBytes.buffer as ArrayBuffer);
+  const encoded = new TextEncoder().encode(body);
+  const keyBytes = new TextEncoder().encode(secret);
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  return crypto.subtle.verify("HMAC", key, signature, encoded);
 }
 function extractTextBody(message: Record<string, unknown>): string | null {
   const type = String(message.type ?? "");
@@ -41,10 +38,8 @@ function extractTextBody(message: Record<string, unknown>): string | null {
 function getSupabaseSecretKey(): string | null {
   const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (raw) {
-    try {
-      const keys = JSON.parse(raw);
-      if (typeof keys.default === "string") return keys.default;
-    } catch { console.error("SUPABASE_SECRET_KEYS is not valid JSON"); }
+    try { const keys = JSON.parse(raw); if (typeof keys.default === "string") return keys.default; }
+    catch { console.error("SUPABASE_SECRET_KEYS is not valid JSON"); }
   }
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
 }
@@ -52,41 +47,25 @@ function getSupabaseSecretKey(): string | null {
 Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
   if (req.method === "GET") {
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
+    const mode = url.searchParams.get("hub.mode"), token = url.searchParams.get("hub.verify_token"), challenge = url.searchParams.get("hub.challenge");
     const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
     if (!verifyToken) return jsonResponse({ error: "Webhook verification is not configured" }, 500);
-    if (mode === "subscribe" && token === verifyToken && challenge !== null) {
-      return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
-    }
+    if (mode === "subscribe" && token === verifyToken && challenge !== null) return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     return jsonResponse({ error: "Webhook verification failed" }, 403);
   }
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-
   const appSecret = Deno.env.get("META_APP_SECRET");
   if (!appSecret) return jsonResponse({ error: "Webhook signature validation is not configured" }, 500);
   const rawBody = await req.text();
-  if (!await verifyMetaSignature(rawBody, req.headers.get("x-hub-signature-256"), appSecret)) {
-    return jsonResponse({ error: "Invalid webhook signature" }, 401);
-  }
-
+  if (!await verifyMetaSignature(rawBody, req.headers.get("x-hub-signature-256"), appSecret)) return jsonResponse({ error: "Invalid webhook signature" }, 401);
   let payload: Record<string, unknown>;
   try { payload = JSON.parse(rawBody); } catch { return jsonResponse({ error: "Invalid JSON payload" }, 400); }
-  if (payload.object !== "whatsapp_business_account" || !Array.isArray(payload.entry)) {
-    return jsonResponse({ error: "Unsupported webhook payload" }, 400);
-  }
+  if (payload.object !== "whatsapp_business_account" || !Array.isArray(payload.entry)) return jsonResponse({ error: "Unsupported webhook payload" }, 400);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const secretKey = getSupabaseSecretKey();
+  const supabaseUrl = Deno.env.get("SUPABASE_URL"), secretKey = getSupabaseSecretKey();
   if (!supabaseUrl || !secretKey) return jsonResponse({ error: "Database connection is not configured" }, 500);
   const supabase = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  let incomingMessages = 0;
-  let storedMessages = 0;
-  let statusUpdates = 0;
-  let updatedStatuses = 0;
-  let duplicateMessages = 0;
+  let incomingMessages = 0, storedMessages = 0, statusUpdates = 0, updatedStatuses = 0, duplicateMessages = 0;
 
   for (const entry of payload.entry as Array<Record<string, unknown>>) {
     if (!Array.isArray(entry.changes)) continue;
@@ -100,16 +79,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (Array.isArray(value.statuses)) {
         for (const item of value.statuses as Array<Record<string, unknown>>) {
           if (typeof item.id !== "string" || typeof item.status !== "string") continue;
+          const seconds = typeof item.timestamp === "string" ? Number(item.timestamp) : NaN;
+          const eventTime = Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString() : new Date().toISOString();
           statusUpdates++;
-          const { data: matchedRows, error } = await supabase.from("trx_messages").update({
-            status: item.status,
-            error_details: Array.isArray(item.errors) && item.errors.length ? item.errors : null,
-          }).eq("wamid", item.id).select("id");
-          if (error) {
-            console.error("Failed to update WhatsApp message status", { code: error.code, message: error.message });
-            return jsonResponse({ error: "Failed to update message status" }, 500);
+          try {
+            if (await recordStatusEvent(item.id, item.status, eventTime, Array.isArray(item.errors) && item.errors.length ? item.errors : null, item)) updatedStatuses++;
+          } catch (error) {
+            console.error("Failed to persist WhatsApp message status", String(error));
+            return jsonResponse({ error: "Failed to persist message status event" }, 500);
           }
-          updatedStatuses += matchedRows?.length ?? 0;
         }
       }
 
@@ -117,21 +95,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const contacts = Array.isArray(value.contacts) ? value.contacts as Array<Record<string, unknown>> : [];
       const messages = value.messages as Array<Record<string, unknown>>;
       const rows = messages.map((message) => {
-        const from = typeof message.from === "string" ? message.from : null;
-        const wamid = typeof message.id === "string" ? message.id : null;
+        const from = typeof message.from === "string" ? message.from : null, wamid = typeof message.id === "string" ? message.id : null;
         if (!from || !wamid) return null;
         const contact = contacts.find((item) => item.wa_id === from);
         const profile = contact?.profile && typeof contact.profile === "object" ? contact.profile as Record<string, unknown> : {};
         const timestamp = typeof message.timestamp === "string" ? Number(message.timestamp) : NaN;
-        const interactive = message.type === "interactive" && message.interactive && typeof message.interactive === "object"
-          ? message.interactive as Record<string, unknown>
-          : null;
-        const context = message.context && typeof message.context === "object"
-          ? message.context as Record<string, unknown>
-          : null;
+        const interactive = message.type === "interactive" && message.interactive && typeof message.interactive === "object" ? message.interactive as Record<string, unknown> : null;
+        const context = message.context && typeof message.context === "object" ? message.context as Record<string, unknown> : null;
         return {
-          wamid, from_phone: from,
-          profile_name: typeof profile.name === "string" ? profile.name : null,
+          wamid, from_phone: from, profile_name: typeof profile.name === "string" ? profile.name : null,
           phone_number_id: phoneNumberId, display_phone_number: displayPhone,
           message_type: typeof message.type === "string" ? message.type : "unknown",
           interactive_type: typeof interactive?.type === "string" ? interactive.type : null,
@@ -142,23 +114,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
           raw_message: message, direction: "inbound",
         };
       }).filter((row): row is NonNullable<typeof row> => row !== null);
-
       incomingMessages += messages.length;
       if (rows.length) {
-        const { data: insertedRows, error } = await supabase.from("trx_messages")
-          .upsert(rows, { onConflict: "wamid", ignoreDuplicates: true })
-          .select("id");
+        const { data: insertedRows, error } = await supabase.from("trx_messages").upsert(rows, { onConflict: "wamid", ignoreDuplicates: true }).select("id");
         if (error) {
           console.error("Failed to store incoming WhatsApp messages", { code: error.code, message: error.message });
           return jsonResponse({ error: "Failed to store incoming messages" }, 500);
         }
-        const insertedCount = insertedRows?.length ?? 0;
-        storedMessages += insertedCount;
-        duplicateMessages += rows.length - insertedCount;
+        const count = insertedRows?.length ?? 0;
+        storedMessages += count;
+        duplicateMessages += rows.length - count;
       }
     }
   }
-
   console.info("WhatsApp webhook accepted", { entries: payload.entry.length, incomingMessages, storedMessages, duplicateMessages, statusUpdates, updatedStatuses });
   return jsonResponse({ received: true, incomingMessages, storedMessages, duplicateMessages, statusUpdates, updatedStatuses });
 });

@@ -1,11 +1,14 @@
 import { sendToMeta, MetaApiError } from "./meta-client.ts";
-import { storeOutboundMessage } from "./message-store.ts";
+import {
+  beginSendRequest, completeSendRequest, setSendRequestState,
+  IdempotencyConflictError,
+} from "./reliability-store.ts";
 import { buildGenericPayload, buildInteractivePayload, buildTextPayload, isObject, normalizeRecipient, RequestValidationError } from "./validation.ts";
 import type { JsonObject, MetaMessagePayload } from "./types.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, idempotency-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -15,9 +18,7 @@ function json(body: JsonObject, status = 200): Response {
 }
 
 function messagePreview(payload: MetaMessagePayload): string | null {
-  if (payload.type === "text" && isObject(payload.text)) {
-    return typeof payload.text.body === "string" ? payload.text.body : null;
-  }
+  if (payload.type === "text" && isObject(payload.text)) return typeof payload.text.body === "string" ? payload.text.body : null;
   if (payload.type === "interactive" && isObject(payload.interactive) && isObject(payload.interactive.body)) {
     return typeof payload.interactive.body.text === "string" ? payload.interactive.body.text : null;
   }
@@ -29,98 +30,91 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "Request body must be valid JSON." }, 400);
-  }
+  try { body = await req.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
   if (!isObject(body)) return json({ error: "Request body must be a JSON object." }, 400);
 
   let payload: MetaMessagePayload;
   try {
     const to = normalizeRecipient(body.to);
     const path = new URL(req.url).pathname.replace(/\/+$/, "");
-    if (path.endsWith("/messages/text")) {
-      payload = buildTextPayload(to, body);
-    } else if (path.endsWith("/messages/interactive")) {
-      payload = buildInteractivePayload(to, body.interactive);
-    } else if (path.endsWith("/messages/catalog")) {
-      const catalogInteractive: JsonObject = {
-        type: "catalog_message",
-        body: { text: body.body },
-        action: {
-          name: "catalog_message",
-          ...(body.thumbnail_product_retailer_id
-            ? { parameters: { thumbnail_product_retailer_id: body.thumbnail_product_retailer_id } }
-            : {}),
-        },
+    if (path.endsWith("/messages/text")) payload = buildTextPayload(to, body);
+    else if (path.endsWith("/messages/interactive")) payload = buildInteractivePayload(to, body.interactive);
+    else if (path.endsWith("/messages/catalog")) {
+      const interactive: JsonObject = {
+        type: "catalog_message", body: { text: body.body },
+        action: { name: "catalog_message", ...(body.thumbnail_product_retailer_id ? { parameters: { thumbnail_product_retailer_id: body.thumbnail_product_retailer_id } } : {}) },
         ...(body.footer ? { footer: { text: body.footer } } : {}),
       };
-      payload = buildInteractivePayload(to, catalogInteractive);
+      payload = buildInteractivePayload(to, interactive);
     } else if (path.endsWith("/messages/product")) {
-      const productInteractive: JsonObject = {
-        type: "product",
-        ...(body.body ? { body: { text: body.body } } : {}),
+      payload = buildInteractivePayload(to, {
+        type: "product", ...(body.body ? { body: { text: body.body } } : {}),
         ...(body.footer ? { footer: { text: body.footer } } : {}),
-        action: {
-          catalog_id: body.catalog_id,
-          product_retailer_id: body.product_retailer_id,
-        },
-      };
-      payload = buildInteractivePayload(to, productInteractive);
+        action: { catalog_id: body.catalog_id, product_retailer_id: body.product_retailer_id },
+      });
     } else if (path.endsWith("/messages/products")) {
-      const productsInteractive: JsonObject = {
-        type: "product_list",
-        header: { type: "text", text: body.header },
-        body: { text: body.body },
+      payload = buildInteractivePayload(to, {
+        type: "product_list", header: { type: "text", text: body.header }, body: { text: body.body },
         ...(body.footer ? { footer: { text: body.footer } } : {}),
-        action: {
-          catalog_id: body.catalog_id,
-          sections: body.sections,
-        },
-      };
-      payload = buildInteractivePayload(to, productsInteractive);
+        action: { catalog_id: body.catalog_id, sections: body.sections },
+      });
     } else if (path.endsWith("/messages/product-carousel")) {
-      const carouselInteractive: JsonObject = {
-        type: "carousel",
-        body: { text: body.body },
-        action: { cards: body.cards },
-      };
-      payload = buildInteractivePayload(to, carouselInteractive);
-    } else {
-      payload = buildGenericPayload(to, body);
-    }
+      payload = buildInteractivePayload(to, { type: "carousel", body: { text: body.body }, action: { cards: body.cards } });
+    } else payload = buildGenericPayload(to, body);
   } catch (error) {
     if (error instanceof RequestValidationError) return json({ error: error.message }, 400);
     return json({ error: "Invalid message request." }, 400);
   }
 
+  const suppliedKey = req.headers.get("Idempotency-Key")?.trim();
+  if (suppliedKey && (suppliedKey.length > 200 || /[\r\n]/.test(suppliedKey))) {
+    return json({ error: "Idempotency-Key must be 1–200 characters." }, 400);
+  }
+  const idempotencyKey = suppliedKey || crypto.randomUUID();
+
+  let request;
+  try {
+    request = await beginSendRequest(idempotencyKey, payload);
+  } catch (error) {
+    if (error instanceof IdempotencyConflictError) return json({ error: error.message }, 409);
+    console.error("Could not persist send intent", String(error));
+    return json({ error: "Could not persist WhatsApp send request." }, 503);
+  }
+
+  if (!request.created) {
+    if (request.state === "accepted" && request.wamid) {
+      return json({ success: true, wamid: request.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true, idempotent_replay: true });
+    }
+    if (request.state === "failed") return json({ error: "This idempotent request previously failed.", status: "failed", idempotent_replay: true }, 409);
+    return json({
+      error: request.state === "unknown" ? "Previous send outcome is unknown; automatic retry was blocked." : "This request is already processing or requires persistence recovery.",
+      status: request.state,
+      wamid: request.wamid,
+      saved: request.state === "accepted_unstored" ? false : undefined,
+      idempotent_replay: true,
+    }, 202);
+  }
+
   try {
     const result = await sendToMeta(payload);
     try {
-      await storeOutboundMessage(payload, result.wamid, result.response);
+      await completeSendRequest(idempotencyKey, payload, result.wamid, result.response);
     } catch (error) {
-      return json({
-        error: error instanceof Error ? error.message : "Message was sent but could not be saved.",
-        wamid: result.wamid,
-        saved: false,
-      }, 500);
+      try { await setSendRequestState(idempotencyKey, "accepted_unstored", { message: String(error), wamid: result.wamid }); } catch (stateError) {
+        console.error("Could not record accepted-but-unpersisted message", String(stateError));
+      }
+      return json({ error: "Message was accepted by WhatsApp but could not be saved.", wamid: result.wamid, saved: false, status: "accepted_unstored" }, 503);
     }
-
-    return json({
-      success: true,
-      wamid: result.wamid,
-      to: payload.to,
-      type: payload.type,
-      preview: messagePreview(payload),
-      status: "accepted",
-      saved: true,
-    });
+    return json({ success: true, wamid: result.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true });
   } catch (error) {
     if (error instanceof MetaApiError) {
+      try { await setSendRequestState(idempotencyKey, "failed", error.details); } catch (stateError) { console.error("Could not persist rejected send state", String(stateError)); }
       return json({ error: error.message, details: error.details }, error.status >= 400 && error.status < 500 ? error.status : 502);
     }
-    console.error("cloud-tools failed", String(error));
-    return json({ error: error instanceof Error ? error.message : "Could not send WhatsApp message." }, 502);
+    try { await setSendRequestState(idempotencyKey, "unknown", { message: error instanceof Error ? error.message : String(error) }); } catch (stateError) {
+      console.error("Could not persist unknown send state", String(stateError));
+    }
+    console.error("cloud-tools send outcome is unknown", String(error));
+    return json({ error: "WhatsApp send outcome is unknown; retry with the same Idempotency-Key to check status, not to resend.", status: "unknown" }, 502);
   }
 });
