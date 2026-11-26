@@ -20,7 +20,18 @@ self.addEventListener("push", (event) => {
     data: { url: typeof payload.url === "string" ? payload.url : "./" },
   };
 
-  event.waitUntil((async () => {\n    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });\n    const appIsVisible = windows.some((client) => client.visibilityState === "visible" && client.focused);\n    if (!appIsVisible) await self.registration.showNotification(title, options);\n  })());
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
+    const appIsVisible = windows.some(
+      (client) => client.visibilityState === "visible" && client.focused,
+    );
+    if (!appIsVisible) {
+      await self.registration.showNotification(title, options);
+    }
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
