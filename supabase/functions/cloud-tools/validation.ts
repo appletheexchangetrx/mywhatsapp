@@ -40,27 +40,25 @@ function validateTextObject(value: unknown, field: string, maxLength: number): J
 }
 
 function validateList(interactive: JsonObject): void {
-  validateTextObject(interactive.body, "interactive.body", 1024);
+  validateTextObject(interactive.body, "interactive.body", 4096);
   if (interactive.header !== undefined) {
-    const header = interactive.header;
-    if (!isObject(header)) throw new RequestValidationError("'interactive.header' must be an object.");
-    if (header.type === "text") requiredString(header.text, "interactive.header.text", 60);
-    else if (!["image", "video", "document"].includes(String(header.type))) {
-      throw new RequestValidationError("List header type must be text, image, video, or document.");
+    if (!isObject(interactive.header) || interactive.header.type !== "text") {
+      throw new RequestValidationError("List messages support an optional text header only.");
     }
+    requiredString(interactive.header.text, "interactive.header.text", 60);
   }
   if (interactive.footer !== undefined) validateTextObject(interactive.footer, "interactive.footer", 60);
   if (!isObject(interactive.action)) throw new RequestValidationError("'interactive.action' is required.");
   requiredString(interactive.action.button, "interactive.action.button", 20);
-  if (!Array.isArray(interactive.action.sections) || interactive.action.sections.length < 1) {
-    throw new RequestValidationError("List messages require at least one action section.");
+  if (!Array.isArray(interactive.action.sections) || interactive.action.sections.length < 1 || interactive.action.sections.length > 10) {
+    throw new RequestValidationError("List messages require 1–10 action sections.");
   }
   let totalRows = 0;
   for (const [sectionIndex, section] of interactive.action.sections.entries()) {
     if (!isObject(section) || !Array.isArray(section.rows) || section.rows.length < 1) {
       throw new RequestValidationError(`Section ${sectionIndex + 1} must contain at least one row.`);
     }
-    if (section.title !== undefined) requiredString(section.title, `sections[${sectionIndex}].title`, 24);
+    requiredString(section.title, `sections[${sectionIndex}].title`, 24);
     for (const [rowIndex, row] of section.rows.entries()) {
       if (!isObject(row)) throw new RequestValidationError("Each list row must be an object.");
       requiredString(row.id, `sections[${sectionIndex}].rows[${rowIndex}].id`, 200);
