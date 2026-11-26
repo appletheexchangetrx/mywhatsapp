@@ -180,3 +180,144 @@ Deno.test("accepts more than ten product-list sections when total products stay 
     action: { catalog_id: "catalog_1", sections },
   });
 });
+
+
+Deno.test("accepts reply button text header at the 60-character boundary", () => {
+  buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "text", text: "H".repeat(60) },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "yes", title: "Yes" } }] },
+  });
+});
+
+Deno.test("accepts reply button image, video, and document headers using media IDs", () => {
+  for (const type of ["image", "video", "document"]) {
+    buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type, [type]: { id: "media_id_1" } },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "reply_" + type, title: "Continue" } }] },
+    });
+  }
+});
+
+Deno.test("accepts reply button media headers using links", () => {
+  buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "image", image: { link: "https://example.com/header.jpg" } },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+  });
+});
+
+Deno.test("accepts absolute HTTP and HTTPS media header URLs", () => {
+  for (const link of ["http://example.com/header.jpg", "https://cdn.example.com/header.jpg?size=large"]) {
+    buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type: "image", image: { link } },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "continue_" + (link.startsWith("https") ? "https" : "http"), title: "Continue" } }] },
+    });
+  }
+});
+
+Deno.test("rejects malformed, relative, and non-HTTP(S) media header URLs", () => {
+  for (const link of ["not-a-url", "/media/header.jpg", "ftp://example.com/header.jpg", "https://"]) {
+    expectValidationError(() => buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type: "image", image: { link } },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+    }));
+  }
+});
+
+Deno.test("rejects reply button media headers without a media object or media source", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "image" },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+  }));
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "video", video: {} },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+  }));
+});
+
+Deno.test("rejects reply button media headers with both ID and link", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: {
+      type: "image",
+      image: { id: "media_id_1", link: "https://example.com/header.jpg" },
+    },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+  }));
+});
+
+Deno.test("rejects duplicate reply button IDs", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "same_id", title: "Yes" } },
+        { type: "reply", reply: { id: "same_id", title: "No" } },
+      ],
+    },
+  }));
+});
+
+Deno.test("rejects duplicate reply button titles", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: "yes_1", title: "Continue" } },
+        { type: "reply", reply: { id: "yes_2", title: "Continue" } },
+      ],
+    },
+  }));
+});
+
+Deno.test("enforces reply button ID and title length limits", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "i".repeat(257), title: "Yes" } }] },
+  }));
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "yes", title: "T".repeat(21) } }] },
+  }));
+});
+
+Deno.test("enforces reply button body and footer length limits", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "B".repeat(1025) },
+    action: { buttons: [{ type: "reply", reply: { id: "yes", title: "Yes" } }] },
+  }));
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    footer: { text: "F".repeat(61) },
+    action: { buttons: [{ type: "reply", reply: { id: "yes", title: "Yes" } }] },
+  }));
+});
+
+Deno.test("rejects unsupported reply button header types", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    header: { type: "location", location: {} },
+    body: { text: "Choose one" },
+    action: { buttons: [{ type: "reply", reply: { id: "yes", title: "Yes" } }] },
+  }));
+});
