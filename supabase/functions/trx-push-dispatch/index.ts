@@ -21,7 +21,6 @@ Deno.serve(async req=>{
   if(!events?.length)return json({success:true,processed:0});
   let delivered=0,failed=0;
   for(const event of events){
-   if(!subs?.length){await db.from("trx_push_outbox").update({status:"sent",sent_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",event.id);continue}
    let retry=false,deliveredForEvent=0;
    for(const sub of subs){
     try{
@@ -31,15 +30,25 @@ Deno.serve(async req=>{
      delivered++;deliveredForEvent++;
     }catch(error){
      const e=error as {statusCode?:number;permanent?:boolean};
-     if(e.permanent||e.statusCode===404||e.statusCode===410)await db.from("trx_push_subscriptions").update({enabled:false,updated_at:new Date().toISOString()}).eq("id",sub.id);
-     else retry=true;
+     if(e.permanent||e.statusCode===404||e.statusCode===410){
+      const {error:disableError}=await db.from("trx_push_subscriptions").update({enabled:false,updated_at:new Date().toISOString()}).eq("id",sub.id);
+      if(disableError)throw disableError;
+     } else retry=true;
      console.warn("Web Push delivery failed",{statusCode:e.statusCode,permanent:e.permanent});
     }
    }
    const now=new Date(),attempts=Number(event.attempts||0)+1;
-   if(retry){await db.from("trx_push_outbox").update({status:attempts>=8?"failed":"pending",attempts,next_attempt_at:new Date(now.getTime()+Math.min(60,2**attempts)*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);failed++}
-   else if(deliveredForEvent>0) await db.from("trx_push_outbox").update({status:"sent",sent_at:now.toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
-   else await db.from("trx_push_outbox").update({status:"pending",attempts,next_attempt_at:new Date(now.getTime()+5*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+   let outboxUpdate;
+   if(retry && deliveredForEvent===0){
+    outboxUpdate=await db.from("trx_push_outbox").update({status:attempts>=8?"failed":"pending",attempts,next_attempt_at:new Date(now.getTime()+Math.min(60,2**attempts)*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+    failed++;
+   } else if(deliveredForEvent>0){
+    // Mark the event complete once at least one device received it; avoid resending duplicates to devices that succeeded.
+    outboxUpdate=await db.from("trx_push_outbox").update({status:"sent",sent_at:now.toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+   } else {
+    outboxUpdate=await db.from("trx_push_outbox").update({status:"pending",attempts,next_attempt_at:new Date(now.getTime()+5*60000).toISOString(),updated_at:now.toISOString()}).eq("id",event.id);
+   }
+   if(outboxUpdate.error)throw outboxUpdate.error;
   }
   return json({success:true,processed:events.length,delivered,failed});
  }catch(error){console.error("Push dispatch failed",String(error));return json({error:"Push dispatcher failed"},500)}
