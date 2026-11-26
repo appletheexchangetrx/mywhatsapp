@@ -19,7 +19,7 @@ export async function sendToMeta(payload: MetaMessagePayload): Promise<MetaSendR
   if (!accessToken || !phoneNumberId || !apiVersion) {
     throw new Error("WhatsApp Cloud API configuration is incomplete.");
   }
-  if (!/^v\\d+\\.\\d+$/.test(apiVersion)) {
+  if (!/^v\d+\.\d+$/.test(apiVersion)) {
     throw new Error("WHATSAPP_API_VERSION must use the format vNN.N.");
   }
 
