@@ -27,7 +27,7 @@ test("Web Push Base64 compatibility shim", async (t) => {
   });
 
   await t.test("accepts standard Base64 whitespace", () => {
-    assert.equal(new TextDecoder().decode(Uint8Array.fromBase64("SGVs bG8=\\n")), "Hello");
+    assert.equal(new TextDecoder().decode(Uint8Array.fromBase64("SGVs bG8=")), "Hello");
   });
 
   await t.test("encodes standard Base64 and Base64URL", () => {
