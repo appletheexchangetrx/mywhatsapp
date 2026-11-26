@@ -95,3 +95,16 @@ Deno.test("rejects list messages with more than ten rows", () => {
     action: { button: "Options", sections: [{ rows }] },
   }));
 });
+
+Deno.test("rejects more than three reply buttons", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "button",
+    body: { text: "Choose one" },
+    action: {
+      buttons: Array.from({ length: 4 }, (_, index) => ({
+        type: "reply",
+        reply: { id: "id_" + index, title: "Button " + index },
+      })),
+    },
+  }));
+});
