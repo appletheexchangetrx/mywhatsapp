@@ -62,7 +62,7 @@ export function subscribeToMessages({ onMessage, onStatus }) {
 
 export async function sendWhatsAppMessage(to, message) {
   const { data, error } = await supabase.functions.invoke(
-    "trx-send-messages",
+    "cloud-tools/messages/text",
     {
       body: { to, message },
     },
