@@ -155,7 +155,7 @@ The Product Carousel is an interactive catalog message, not a media carousel. It
 - Interactive list: body maximum 4,096 characters; 1–10 sections; maximum 10 rows total; section title maximum 24 characters; list button maximum 20 characters. Header, when present, is text-only.
 - Reply buttons: 1–3 buttons; title maximum 20 characters.
 - Catalog footer: maximum 60 characters.
-- Product list: 1–10 sections and maximum 30 product items.
+- Product list: at least one section and maximum 30 product items total. Each section requires a title and at least one product item; the implementation does not impose an undocumented section-count or title-length limit.
 - Product carousel: 2–10 product cards, unique indexes 0–9, one shared catalog ID; no header, footer, or buttons.
 - Location Request is intentionally not supported.
 - Media carousel is a different message format and is not implemented by the Product Carousel route.
