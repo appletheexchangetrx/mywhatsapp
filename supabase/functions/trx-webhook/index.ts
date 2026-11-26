@@ -19,8 +19,8 @@ async function verifyMetaSignature(body: string, header: string | null, secret: 
   keyBytes.set(new TextEncoder().encode(secret));
   const bodyBytes = new Uint8Array(new ArrayBuffer(new TextEncoder().encode(body).byteLength));
   bodyBytes.set(new TextEncoder().encode(body));
-  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-  return crypto.subtle.verify("HMAC", key, signature, bodyBytes);
+  const key = await crypto.subtle.importKey("raw", keyBytes.buffer as ArrayBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  return crypto.subtle.verify("HMAC", key, signature.buffer as ArrayBuffer, bodyBytes.buffer as ArrayBuffer);
 }
 function extractTextBody(message: Record<string, unknown>): string | null {
   const type = String(message.type ?? "");
