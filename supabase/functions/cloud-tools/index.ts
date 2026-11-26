@@ -82,6 +82,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (!request.created) {
+    if (request.state === "accepted_unstored" && request.wamid && request.metaResponse) {
+      try {
+        await completeSendRequest(idempotencyKey, payload, request.wamid, request.metaResponse);
+        return json({ success: true, wamid: request.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true, idempotent_replay: true, reconciled: true });
+      } catch (error) {
+        console.error("Could not reconcile previously accepted WhatsApp message", String(error));
+        return json({ error: "Message was accepted by WhatsApp; database persistence is still pending.", wamid: request.wamid, status: "accepted_unstored", saved: false, idempotent_replay: true }, 202);
+      }
+    }
     if (request.state === "accepted" && request.wamid) {
       return json({ success: true, wamid: request.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true, idempotent_replay: true });
     }
@@ -100,7 +109,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       await completeSendRequest(idempotencyKey, payload, result.wamid, result.response);
     } catch (error) {
-      try { await setSendRequestState(idempotencyKey, "accepted_unstored", { message: String(error), wamid: result.wamid }); } catch (stateError) {
+      try { await setSendRequestState(idempotencyKey, "accepted_unstored", { message: String(error), wamid: result.wamid }, result.response); } catch (stateError) {
         console.error("Could not record accepted-but-unpersisted message", String(stateError));
       }
       return json({ error: "Message was accepted by WhatsApp but could not be saved.", wamid: result.wamid, saved: false, status: "accepted_unstored" }, 503);

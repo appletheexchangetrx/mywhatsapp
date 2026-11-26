@@ -56,9 +56,15 @@ export async function setSendRequestState(
   idempotencyKey: string,
   state: "failed" | "unknown" | "accepted_unstored",
   details: JsonObject,
+  metaResponse?: JsonObject,
 ): Promise<void> {
+  const update: Record<string, unknown> = { state, error_details: details, updated_at: new Date().toISOString() };
+  if (state === "accepted_unstored") {
+    if (typeof details.wamid === "string") update.wamid = details.wamid;
+    if (metaResponse) update.meta_response = metaResponse;
+  }
   const { error } = await getDatabase().from("trx_message_send_requests")
-    .update({ state, error_details: details, updated_at: new Date().toISOString() })
+    .update(update)
     .eq("idempotency_key", idempotencyKey);
   if (error) throw new Error("Could not update WhatsApp send request state.");
 }
