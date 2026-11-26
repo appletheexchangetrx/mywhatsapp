@@ -13,12 +13,14 @@ self.addEventListener("push", (event) => {
     body: typeof payload.body === "string" ? payload.body : "Anda menerima pesan baru.",
     icon: "./assets/icons/whatsapp-inbox.svg",
     badge: "./assets/icons/whatsapp-inbox.svg",
-    tag: typeof payload.tag === "string" ? payload.tag : "whatsapp-new-message",
-    renotify: false,
+    tag: typeof payload.tag === "string" ? payload.tag : "whatsapp-" + Date.now(),
+    renotify: true,
+    silent: false,
+    vibrate: [120, 60, 120],
     data: { url: typeof payload.url === "string" ? payload.url : "./" },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {\n    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });\n    const appIsVisible = windows.some((client) => client.visibilityState === "visible" && client.focused);\n    if (!appIsVisible) await self.registration.showNotification(title, options);\n  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
