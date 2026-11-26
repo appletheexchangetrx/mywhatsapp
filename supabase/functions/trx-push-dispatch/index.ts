@@ -29,10 +29,13 @@ Deno.serve(async req=>{
     ?message.profile_name
     :typeof message?.from_phone==="string"&&message.from_phone
      ?message.from_phone:"WhatsApp";
-   const notificationBody=typeof message?.text_body==="string"&&message.text_body
+   const messagePreview=typeof message?.text_body==="string"&&message.text_body
     ?message.text_body
     :typeof message?.message_type==="string"
      ?`Pesan ${message.message_type}`:"Anda menerima pesan baru.";
+   const notificationBody=messagePreview.length>160
+    ?messagePreview.slice(0,157)+"..."
+    :messagePreview;
    for(const sub of subs){
     try{
      await send({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
