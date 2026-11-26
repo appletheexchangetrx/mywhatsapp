@@ -3,7 +3,7 @@
  *
  * The package uses Uint8Array.fromBase64() and Uint8Array.prototype.toBase64(),
  * which are not available in every Supabase Edge Runtime release.
- * Implements only the Base64 options used by that package.
+ * Implements the Base64 options used by that package.
  */
 export function installUint8ArrayBase64Compatibility() {
   if (typeof Uint8Array.fromBase64 !== "function") {
@@ -20,10 +20,10 @@ export function installUint8ArrayBase64Compatibility() {
           throw new TypeError("Invalid Base64 alphabet");
         }
 
-        const clean = input.replace(/[\\t\\n\\f\\r ]/g, "");
+        const clean = input.replace(/[ \t\n\f\r]/g, "");
         const invalidAlphabet = alphabet === "base64"
           ? /[^A-Za-z0-9+/=]/
-          : /[^A-Za-z0-9_\\-=]/;
+          : /[^A-Za-z0-9_=-]/;
         if (invalidAlphabet.test(clean)) {
           throw new SyntaxError("Invalid character in Base64 input");
         }
@@ -74,7 +74,7 @@ export function installUint8ArrayBase64Compatibility() {
 
         let encoded = btoa(binary);
         if (alphabet === "base64url") {
-          encoded = encoded.replace(/\\+/g, "-").replace(/\\//g, "_");
+          encoded = encoded.replace(/\+/g, "-").replace(/\//g, "_");
         }
         if (options.omitPadding) encoded = encoded.replace(/=+$/g, "");
         return encoded;
