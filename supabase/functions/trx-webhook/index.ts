@@ -82,6 +82,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let storedMessages = 0;
   let statusUpdates = 0;
   let updatedStatuses = 0;
+  let duplicateMessages = 0;
 
   for (const entry of payload.entry as Array<Record<string, unknown>>) {
     if (!Array.isArray(entry.changes)) continue;
@@ -96,15 +97,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
         for (const item of value.statuses as Array<Record<string, unknown>>) {
           if (typeof item.id !== "string" || typeof item.status !== "string") continue;
           statusUpdates++;
-          const { error } = await supabase.from("trx_messages").update({
+          const { data: matchedRows, error } = await supabase.from("trx_messages").update({
             status: item.status,
             error_details: Array.isArray(item.errors) && item.errors.length ? item.errors : null,
-          }).eq("wamid", item.id);
+          }).eq("wamid", item.id).select("id");
           if (error) {
             console.error("Failed to update WhatsApp message status", { code: error.code, message: error.message });
             return jsonResponse({ error: "Failed to update message status" }, 500);
           }
-          updatedStatuses++;
+          updatedStatuses += matchedRows?.length ?? 0;
         }
       }
 
@@ -118,11 +119,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const contact = contacts.find((item) => item.wa_id === from);
         const profile = contact?.profile && typeof contact.profile === "object" ? contact.profile as Record<string, unknown> : {};
         const timestamp = typeof message.timestamp === "string" ? Number(message.timestamp) : NaN;
+        const interactive = message.type === "interactive" && message.interactive && typeof message.interactive === "object"
+          ? message.interactive as Record<string, unknown>
+          : null;
+        const context = message.context && typeof message.context === "object"
+          ? message.context as Record<string, unknown>
+          : null;
         return {
           wamid, from_phone: from,
           profile_name: typeof profile.name === "string" ? profile.name : null,
           phone_number_id: phoneNumberId, display_phone_number: displayPhone,
           message_type: typeof message.type === "string" ? message.type : "unknown",
+          interactive_type: typeof interactive?.type === "string" ? interactive.type : null,
+          context_wamid: typeof context?.id === "string" ? context.id : null,
+          from_user_id: typeof message.from_user_id === "string" ? message.from_user_id : null,
           text_body: extractTextBody(message),
           message_timestamp: Number.isFinite(timestamp) ? new Date(timestamp * 1000).toISOString() : null,
           raw_message: message, direction: "inbound",
@@ -131,16 +141,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       incomingMessages += messages.length;
       if (rows.length) {
-        const { error } = await supabase.from("trx_messages").upsert(rows, { onConflict: "wamid", ignoreDuplicates: true });
+        const { data: insertedRows, error } = await supabase.from("trx_messages")
+          .upsert(rows, { onConflict: "wamid", ignoreDuplicates: true })
+          .select("id");
         if (error) {
           console.error("Failed to store incoming WhatsApp messages", { code: error.code, message: error.message });
           return jsonResponse({ error: "Failed to store incoming messages" }, 500);
         }
-        storedMessages += rows.length;
+        const insertedCount = insertedRows?.length ?? 0;
+        storedMessages += insertedCount;
+        duplicateMessages += rows.length - insertedCount;
       }
     }
   }
 
-  console.info("WhatsApp webhook accepted", { entries: payload.entry.length, incomingMessages, storedMessages, statusUpdates, updatedStatuses });
-  return jsonResponse({ received: true, storedMessages, statusUpdates, updatedStatuses });
+  console.info("WhatsApp webhook accepted", { entries: payload.entry.length, incomingMessages, storedMessages, duplicateMessages, statusUpdates, updatedStatuses });
+  return jsonResponse({ received: true, incomingMessages, storedMessages, duplicateMessages, statusUpdates, updatedStatuses });
 });
