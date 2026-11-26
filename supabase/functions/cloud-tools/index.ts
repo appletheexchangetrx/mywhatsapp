@@ -57,6 +57,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ...(body.footer ? { footer: { text: body.footer } } : {}),
       };
       payload = buildInteractivePayload(to, catalogInteractive);
+    } else if (path.endsWith("/messages/product")) {
+      const productInteractive: JsonObject = {
+        type: "product",
+        ...(body.body ? { body: { text: body.body } } : {}),
+        ...(body.footer ? { footer: { text: body.footer } } : {}),
+        action: {
+          catalog_id: body.catalog_id,
+          product_retailer_id: body.product_retailer_id,
+        },
+      };
+      payload = buildInteractivePayload(to, productInteractive);
+    } else if (path.endsWith("/messages/products")) {
+      const productsInteractive: JsonObject = {
+        type: "product_list",
+        header: { type: "text", text: body.header },
+        body: { text: body.body },
+        ...(body.footer ? { footer: { text: body.footer } } : {}),
+        action: {
+          catalog_id: body.catalog_id,
+          sections: body.sections,
+        },
+      };
+      payload = buildInteractivePayload(to, productsInteractive);
     } else {
       payload = buildGenericPayload(to, body);
     }
