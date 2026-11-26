@@ -67,7 +67,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const suppliedKey = req.headers.get("Idempotency-Key")?.trim();
-  if (suppliedKey && (suppliedKey.length > 200 || /[\r\n]/.test(suppliedKey))) {
+  if (suppliedKey && (suppliedKey.length > 200 || /[\r
+]/.test(suppliedKey))) {
     return json({ error: "Idempotency-Key must be 1–200 characters." }, 400);
   }
   const idempotencyKey = suppliedKey || crypto.randomUUID();
@@ -90,6 +91,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         console.error("Could not reconcile previously accepted WhatsApp message", String(error));
         return json({ error: "Message was accepted by WhatsApp; database persistence is still pending.", wamid: request.wamid, status: "accepted_unstored", saved: false, idempotent_replay: true }, 202);
       }
+    }
+    if (request.state === "retryable") {
+      const retryAt = request.retryAfterAt ? new Date(request.retryAfterAt) : new Date(Date.now() + 60_000);
+      return json({ error: "Meta rate limit has not expired. Retry with the same Idempotency-Key after Retry-After.", status: "retryable", retry_after_at: retryAt.toISOString() }, 429, { "Retry-After": retryAt.toUTCString() });
+    }
+    if (request.state === "retryable") {
+      const retryAt = request.retryAfterAt ? new Date(request.retryAfterAt) : new Date(Date.now() + 60_000);
+      return json({ error: "Meta rate limit has not expired. Retry with the same Idempotency-Key after Retry-After.", status: "retryable", retry_after_at: retryAt.toISOString() }, 429, { "Retry-After": retryAt.toUTCString() });
+    }
+    if (request.state === "retryable") {
+      const retryAt = request.retryAfterAt ? new Date(request.retryAfterAt) : new Date(Date.now() + 60_000);
+      return json({ error: "Meta rate limit has not expired. Retry with the same Idempotency-Key after Retry-After.", status: "retryable", retry_after_at: retryAt.toISOString() }, 429, { "Retry-After": retryAt.toUTCString() });
     }
     if (request.state === "accepted" && request.wamid) {
       return json({ success: true, wamid: request.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true, idempotent_replay: true });
@@ -123,7 +136,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return json({ error: error.message, details: error.details, status: "failed" }, error.status);
       }
       if (classification === "retryable") {
-        try { await setSendRequestState(idempotencyKey, "retryable", error.details); } catch (stateError) { console.error("Could not persist retryable send state", String(stateError)); }
+        const retryAt = error.retryAfter
+          ? (Number.isFinite(Number(error.retryAfter)) && String(Number(error.retryAfter)) === error.retryAfter.trim() ? Date.now() + Number(error.retryAfter) * 1000 : Date.parse(error.retryAfter))
+          : Date.now() + 60_000;
+        const retryAfterAt = new Date(Number.isFinite(retryAt) ? retryAt : Date.now() + 60_000).toISOString();
+        try { await setSendRequestState(idempotencyKey, "retryable", { ...error.details, retry_after_at: retryAfterAt }); } catch (stateError) { console.error("Could not persist retryable send state", String(stateError)); }
         const retryHeaders = error.retryAfter ? { "Retry-After": error.retryAfter } : {};
         return json({ error: "Meta explicitly rejected this request due to rate limiting. Retry with the same Idempotency-Key after the indicated delay.", status: "retryable", retry_after: error.retryAfter }, 429, retryHeaders);
       }

@@ -28,11 +28,12 @@ type ExistingRequest = {
   state: string;
   wamid: string | null;
   meta_response: JsonObject | null;
+  error_details: JsonObject | null;
 };
 
 async function readExisting(db: SupabaseClient, key: string): Promise<ExistingRequest> {
   const { data, error } = await db.from("trx_message_send_requests")
-    .select("payload_hash,state,wamid,meta_response")
+    .select("payload_hash,state,wamid,meta_response,error_details")
     .eq("idempotency_key", key).maybeSingle();
   if (error || !data) throw new Error("Could not load existing WhatsApp send request.");
   return data as ExistingRequest;
@@ -41,13 +42,13 @@ async function readExisting(db: SupabaseClient, key: string): Promise<ExistingRe
 export async function beginSendRequest(
   idempotencyKey: string,
   payload: MetaMessagePayload,
-): Promise<{ created: boolean; state: string; wamid: string | null; metaResponse: JsonObject | null }> {
+): Promise<{ created: boolean; state: string; wamid: string | null; metaResponse: JsonObject | null; retryAfterAt: string | null }> {
   const db = getDatabase();
   const payloadHash = await fingerprintPayload(payload);
   const { error } = await db.from("trx_message_send_requests").insert({
     idempotency_key: idempotencyKey, payload_hash: payloadHash, payload, state: "sending",
   });
-  if (!error) return { created: true, state: "sending", wamid: null, metaResponse: null };
+  if (!error) return { created: true, state: "sending", wamid: null, metaResponse: null, retryAfterAt: null };
   if (error.code !== "23505") throw new Error("Could not persist WhatsApp send request.");
 
   let existing = await readExisting(db, idempotencyKey);
@@ -65,13 +66,17 @@ export async function beginSendRequest(
   }
 
   if (existing.state === "retryable") {
+    const retryAfterAt = typeof existing.error_details?.retry_after_at === "string" ? existing.error_details.retry_after_at : null;
+    if (retryAfterAt && Date.parse(retryAfterAt) > Date.now()) {
+      return { created: false, state: "retryable", wamid: null, metaResponse: null, retryAfterAt };
+    }
     // Compare-and-set claim: only one concurrent retry can transition retryable -> sending.
     const { data, error: claimError } = await db.from("trx_message_send_requests")
       .update({ state: "sending", error_details: null, updated_at: new Date().toISOString() })
       .eq("idempotency_key", idempotencyKey).eq("state", "retryable")
       .select("idempotency_key");
     if (claimError) throw new Error("Could not claim retryable WhatsApp send request.");
-    if (data?.length) return { created: true, state: "sending", wamid: null, metaResponse: null };
+    if (data?.length) return { created: true, state: "sending", wamid: null, metaResponse: null, retryAfterAt: null };
     existing = await readExisting(db, idempotencyKey);
   }
 
@@ -80,6 +85,7 @@ export async function beginSendRequest(
     state: String(existing.state),
     wamid: typeof existing.wamid === "string" ? existing.wamid : null,
     metaResponse: existing.meta_response && typeof existing.meta_response === "object" ? existing.meta_response : null,
+    retryAfterAt: typeof existing.error_details?.retry_after_at === "string" ? existing.error_details.retry_after_at : null,
   };
 }
 
