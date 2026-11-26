@@ -211,6 +211,28 @@ Deno.test("accepts reply button media headers using links", () => {
   });
 });
 
+Deno.test("accepts absolute HTTP and HTTPS media header URLs", () => {
+  for (const link of ["http://example.com/header.jpg", "https://cdn.example.com/header.jpg?size=large"]) {
+    buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type: "image", image: { link } },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "continue_" + (link.startsWith("https") ? "https" : "http"), title: "Continue" } }] },
+    });
+  }
+});
+
+Deno.test("rejects malformed, relative, and non-HTTP(S) media header URLs", () => {
+  for (const link of ["not-a-url", "/media/header.jpg", "ftp://example.com/header.jpg", "https://"]) {
+    expectValidationError(() => buildInteractivePayload("6281234567890", {
+      type: "button",
+      header: { type: "image", image: { link } },
+      body: { text: "Choose one" },
+      action: { buttons: [{ type: "reply", reply: { id: "continue", title: "Continue" } }] },
+    }));
+  }
+});
+
 Deno.test("rejects reply button media headers without a media object or media source", () => {
   expectValidationError(() => buildInteractivePayload("6281234567890", {
     type: "button",
