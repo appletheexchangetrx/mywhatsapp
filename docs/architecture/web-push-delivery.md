@@ -5,29 +5,31 @@
 1. `trx-webhook` stores inbound Meta messages in `trx_messages`.
 2. The database trigger `enqueue_trx_message_push` inserts one `new_message` event into `trx_push_outbox` for each inbound message.
 3. Supabase Cron calls `private.invoke_trx_push_dispatch()` once per minute.
-4. The scheduler reads Vault secret `push_dispatch_secret`. If it is absent, the scheduled job exits without making an HTTP request.
-5. `trx-push-dispatch` validates the same value against the Edge Function secret `PUSH_DISPATCH_SECRET`, checks VAPID configuration and active browser subscriptions, then claims and sends queued events.
+4. The scheduler calls `trx-push-dispatch` directly; it no longer reads a dispatcher secret from Vault or sends an `x-push-dispatch-secret` header.
+5. `trx-push-dispatch` reads the VAPID keypair through the server-only RPC `get_trx_push_vapid_config()`, checks active browser subscriptions, then claims and sends queued events.
 6. The root Service Worker displays the notification and opens the inbox when clicked.
 
-## Scheduler activation
+## Dispatcher invocation
 
 The database job `trx-push-dispatch-every-minute` is registered and active.
 
-Before it can call the dispatcher, add a Supabase Vault secret named:
+The dispatcher no longer requires `push_dispatch_secret` in Vault or `PUSH_DISPATCH_SECRET` in Edge Function Secrets. Its Edge Function endpoint is publicly callable (`verify_jwt=false` and no application-level dispatcher token); the database scheduler is the intended caller. A caller may invoke it, but the dispatcher only claims outbox events when at least one enabled subscription exists.
 
-```text
-push_dispatch_secret
-```
+## VAPID key management
 
-Its value must be exactly the existing Edge Function secret `PUSH_DISPATCH_SECRET`. Do not paste the value into GitHub or this document.
+The VAPID keypair is stored encrypted in Supabase Vault as:
+- `trx_vapid_public_key`
+- `trx_vapid_private_key`
 
-The dispatcher also requires the existing Edge Function secrets `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. The public-key endpoint `trx-push-config` returns `VAPID_PUBLIC_KEY` to the browser.
+The SQL function `public.get_trx_push_vapid_config()` is executable only by `service_role`. It supplies the keypair to the server-side `trx-push-config` and `trx-push-dispatch` functions. The public config endpoint returns only the public key to the browser.
+
+The private key is a JWK. The dispatcher verifies that its public/private keys match before claiming events. `VAPID_SUBJECT` is optional; when absent, the application URL is used.
 
 ## Subscription flow
 
 The inbox registers `sw.js` without requesting notification permission. The user explicitly enables notifications using the inbox button. The browser then:
 - requests Notification permission,
-- obtains `VAPID_PUBLIC_KEY` from `trx-push-config`,
+- obtains the VAPID public key from `trx-push-config`,
 - creates a Push API subscription,
 - saves it through `trx-push-subscribe`.
 
@@ -41,8 +43,10 @@ The subscription endpoint is stored in `trx_push_subscriptions`. Disable removes
 - When at least one endpoint succeeds, the outbox event is marked sent to avoid duplicate notifications to successful endpoints. This means `sent` records at least one successful push submission, not confirmation that every device displayed the notification.
 - Notifications contain the sender name/number and a message preview capped at 160 characters.
 
-## Current activation warning
+## Current activation state
 
-At the last audit, there were 15 pending `new_message` events and zero registered push subscriptions. Do not add `push_dispatch_secret` to Vault until deciding how to handle this historical backlog. Once a subscription exists and the secret is configured, those pending events will be eligible for delivery by default.
+The original 15 pending `new_message` events are intentionally preserved. They have not been claimed, modified, or delivered by the activation tests.
 
-No historical outbox events have been modified or processed by this implementation.
+The VAPID keypair has been provisioned in Vault and verified by both Edge Functions. `trx-push-config` returns HTTP 200 with the public key. A no-subscription dispatcher smoke test returns HTTP 200 with `waitingForSubscription: true`, confirming it does not claim pending events before a browser is registered.
+
+The remaining activation step is a user-initiated browser subscription. Once at least one subscription is enabled, the next scheduled dispatcher run will process pending events, including the 15 historical events, as explicitly requested.
