@@ -148,6 +148,39 @@ function validateProductList(interactive: JsonObject): void {
   if (totalProducts > 30) throw new RequestValidationError("Product-list messages support at most 30 products.");
 }
 
+function validateProductCarousel(interactive: JsonObject): void {
+  validateTextObject(interactive.body, "interactive.body", 1024);
+  if (interactive.header !== undefined || interactive.footer !== undefined) {
+    throw new RequestValidationError("Product carousel messages do not support a header or footer.");
+  }
+  if (!isObject(interactive.action) || !Array.isArray(interactive.action.cards)) {
+    throw new RequestValidationError("Product carousel messages require action.cards.");
+  }
+  const cards = interactive.action.cards;
+  if (cards.length < 2 || cards.length > 10) {
+    throw new RequestValidationError("Product carousel messages require 2–10 cards.");
+  }
+  const indexes = new Set<number>();
+  let catalogId: string | null = null;
+  for (const [position, card] of cards.entries()) {
+    if (!isObject(card) || card.type !== "product" || !isObject(card.action)) {
+      throw new RequestValidationError(`Card ${position + 1} must be a product card with an action object.`);
+    }
+    if (!Number.isInteger(card.card_index) || Number(card.card_index) < 0 || Number(card.card_index) > 9) {
+      throw new RequestValidationError("Each product carousel card_index must be a unique integer from 0 to 9.");
+    }
+    const cardIndex = Number(card.card_index);
+    if (indexes.has(cardIndex)) throw new RequestValidationError("Product carousel card_index values must be unique.");
+    indexes.add(cardIndex);
+    requiredString(card.action.product_retailer_id, `cards[${position}].action.product_retailer_id`, 200);
+    const currentCatalogId = requiredString(card.action.catalog_id, `cards[${position}].action.catalog_id`, 128);
+    if (catalogId !== null && currentCatalogId !== catalogId) {
+      throw new RequestValidationError("All product carousel cards must use the same catalog_id.");
+    }
+    catalogId = currentCatalogId;
+  }
+}
+
 export function validateInteractive(interactive: unknown): JsonObject {
   if (!isObject(interactive)) throw new RequestValidationError("Field 'interactive' must be an object.");
   const type = String(interactive.type ?? "");
@@ -157,8 +190,9 @@ export function validateInteractive(interactive: unknown): JsonObject {
     case "catalog_message": validateCatalogMessage(interactive); break;
     case "product": validateSingleProduct(interactive); break;
     case "product_list": validateProductList(interactive); break;
+    case "carousel": validateProductCarousel(interactive); break;
     default:
-      throw new RequestValidationError("Unsupported interactive type. Supported: list, button, catalog_message, product, product_list.");
+      throw new RequestValidationError("Unsupported interactive type. Supported: list, button, catalog_message, product, product_list, carousel (product cards).");
   }
   return interactive;
 }
