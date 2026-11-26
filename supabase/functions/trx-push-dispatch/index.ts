@@ -7,7 +7,23 @@ Deno.serve(async req=>{
  if(req.method!=="POST")return json({error:"Method not allowed"},405);
  const raw=Deno.env.get("VAPID_PRIVATE_KEY");if(!raw)return json({error:"VAPID private key is not configured"},503);
  const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"https://appletheexchangetrx.github.io/mywhatsapp/";
- let vapid:JsonWebKey;try{vapid=JSON.parse(raw) as JsonWebKey}catch{return json({error:"VAPID_PRIVATE_KEY must contain a JSON JWK"},500)}
+ const publicKey=Deno.env.get("VAPID_PUBLIC_KEY");if(!publicKey)return json({error:"VAPID public key is not configured"},503);
+ let vapid:JsonWebKey;
+ try{
+  if(raw.trim().startsWith("{"))vapid=JSON.parse(raw) as JsonWebKey;
+  else{
+   const decode=(value:string)=>{const normalized=value.replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(normalized+"=".repeat((4-normalized.length%4)%4)),c=>c.charCodeAt(0))};
+   const encode=(value:Uint8Array)=>btoa(String.fromCharCode(...value)).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
+   const point=decode(publicKey),privateBytes=decode(raw);
+   if(point.length!==65||point[0]!==4||privateBytes.length!==32)throw new Error("Invalid VAPID key length");
+   vapid={kty:"EC",crv:"P-256",x:encode(point.slice(1,33)),y:encode(point.slice(33,65)),d:encode(privateBytes),ext:true};
+  }
+  const privateCryptoKey=await crypto.subtle.importKey("jwk",vapid,{name:"ECDSA",namedCurve:"P-256"},false,["sign"]);
+  const publicCryptoKey=await crypto.subtle.importKey("raw",(()=>{const decode=(value:string)=>{const normalized=value.replace(/-/g,"+").replace(/_/g,"/");return Uint8Array.from(atob(normalized+"=".repeat((4-normalized.length%4)%4)),c=>c.charCodeAt(0))};return decode(publicKey)})(),{name:"ECDSA",namedCurve:"P-256"},false,["verify"]);
+  const probe=new TextEncoder().encode("vapid-key-pair-check");
+  const signature=await crypto.subtle.sign({name:"ECDSA",hash:"SHA-256"},privateCryptoKey,probe);
+  if(!await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},publicCryptoKey,signature,probe))throw new Error("VAPID public/private key pair mismatch");
+ }catch(error){console.error("VAPID configuration invalid",String(error));return json({error:"VAPID key configuration is invalid or the public/private keys do not match"},500)}
  try{
   const db=admin();
   const {data:subs,error:subError}=await db.from("trx_push_subscriptions").select("id,endpoint,p256dh,auth").eq("enabled",true);
