@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { send } from "jsr:@daaku/webpush@0.2.0";
+import { installUint8ArrayBase64Compatibility } from "../_shared/webpush-base64-compat.js";
+
+// @daaku/webpush@0.2.0 uses Base64 typed-array APIs absent in some Edge runtimes.
+// Install the compatibility methods before the first call to send().
+installUint8ArrayBase64Compatibility();
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
