@@ -41,8 +41,8 @@ as $$
   select case lower(p_status)
     when 'accepted' then 0
     when 'sent' then 1
-    when 'delivered' then 2
-    when 'failed' then 3
+    when 'failed' then 2
+    when 'delivered' then 3
     when 'read' then 4
     else 0
   end;
@@ -122,7 +122,7 @@ begin
     into v_event
     from public.trx_message_status_events
    where wamid = p_wamid
-   order by status_timestamp desc, public.trx_message_status_rank(status) desc, id desc
+   order by public.trx_message_status_rank(status) desc, status_timestamp desc, id desc
    limit 1;
 
   if found then
