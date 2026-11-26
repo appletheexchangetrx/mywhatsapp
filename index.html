@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#075e54">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -98,7 +99,8 @@
       font-weight: 600;
       cursor: pointer;
     }
-    .push-button:disabled { opacity: .55; cursor: not-allowed; }\n    .sound-button { flex: 0 0 auto; min-height: 34px; padding: 0 9px; border: 1px solid #ffffff55; border-radius: 18px; color: #fff; background: #ffffff18; font-size: 10px; font-weight: 600; cursor: pointer; }
+    .push-button:disabled { opacity: .55; cursor: not-allowed; }
+    .sound-button { flex: 0 0 auto; min-height: 34px; padding: 0 9px; border: 1px solid #ffffff55; border-radius: 18px; color: #fff; background: #ffffff18; font-size: 10px; font-weight: 600; cursor: pointer; }
     .status-dot {
       display: inline-block;
       width: 8px;
@@ -371,7 +373,8 @@
       <span id="connection" role="status" aria-live="polite">
         <span class="status-dot"></span><span>Menghubungkan</span>
       </span>
-      <button id="sound-button" class="sound-button" type="button" aria-pressed="true">Suara: ON</button>\n      <button id="push-button" class="push-button" type="button">Aktifkan notifikasi</button>
+      <button id="sound-button" class="sound-button" type="button" aria-pressed="true">Suara: ON</button>
+      <button id="push-button" class="push-button" type="button">Aktifkan notifikasi</button>
     </header>
 
     <div class="workspace">
@@ -669,7 +672,20 @@
         }
       }
 
-      async function refreshSoundButton() {\n        const enabled = isNotificationSoundEnabled();\n        const button = $("sound-button");\n        button.textContent = enabled ? "Suara: ON" : "Suara: OFF";\n        button.setAttribute("aria-pressed", enabled ? "true" : "false");\n      }\n\n      $("sound-button").addEventListener("click", async () => {\n        const enabled = !isNotificationSoundEnabled();\n        await setNotificationSoundEnabled(enabled);\n        await refreshSoundButton();\n      });\n\n      async function refreshPushButton() {
+      async function refreshSoundButton() {
+        const enabled = isNotificationSoundEnabled();
+        const button = $("sound-button");
+        button.textContent = enabled ? "Suara: ON" : "Suara: OFF";
+        button.setAttribute("aria-pressed", enabled ? "true" : "false");
+      }
+
+      $("sound-button").addEventListener("click", async () => {
+        const enabled = !isNotificationSoundEnabled();
+        await setNotificationSoundEnabled(enabled);
+        await refreshSoundButton();
+      });
+
+      async function refreshPushButton() {
         const button = $("push-button");
         if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
           button.disabled = true;
@@ -732,7 +748,7 @@
             }
             return;
           }
-          upsertMessage(record);
+          if (eventType === "INSERT" && record?.direction === "inbound") {\n            void playIncomingMessageSound();\n          }\n          upsertMessage(record);
         },
         onStatus: (status) => {
           if (status === "SUBSCRIBED") setConnection("Realtime aktif", "#25d366");
