@@ -26,8 +26,8 @@ export function normalizeRecipient(value: unknown): string {
   if (typeof value !== "string") {
     throw new RequestValidationError("Field 'to' must be a WhatsApp phone number.");
   }
-  const to = value.replace(/[+\\s()-]/g, "");
-  if (!/^\\d{8,15}$/.test(to)) {
+  const to = value.replace(/[+\s()-]/g, "");
+  if (!/^\d{8,15}$/.test(to)) {
     throw new RequestValidationError("Field 'to' must be an international WhatsApp number with 8–15 digits.");
   }
   return to;
@@ -114,6 +114,8 @@ function validateCatalogMessage(interactive: JsonObject): void {
 }
 
 function validateSingleProduct(interactive: JsonObject): void {
+  if (interactive.body !== undefined) validateTextObject(interactive.body, "interactive.body", 1024);
+  if (interactive.footer !== undefined) validateTextObject(interactive.footer, "interactive.footer", 60);
   if (!isObject(interactive.action)) throw new RequestValidationError("Single product messages require an action object.");
   requiredString(interactive.action.catalog_id, "interactive.action.catalog_id", 128);
   requiredString(interactive.action.product_retailer_id, "interactive.action.product_retailer_id", 200);
@@ -121,12 +123,10 @@ function validateSingleProduct(interactive: JsonObject): void {
 
 function validateProductList(interactive: JsonObject): void {
   validateTextObject(interactive.body, "interactive.body", 1024);
-  if (interactive.header !== undefined) {
-    if (!isObject(interactive.header) || interactive.header.type !== "text") {
-      throw new RequestValidationError("Product-list header must be a text header.");
-    }
-    requiredString(interactive.header.text, "interactive.header.text", 60);
+  if (!isObject(interactive.header) || interactive.header.type !== "text") {
+    throw new RequestValidationError("Product-list messages require a text header.");
   }
+  requiredString(interactive.header.text, "interactive.header.text", 60);
   if (interactive.footer !== undefined) validateTextObject(interactive.footer, "interactive.footer", 60);
   if (!isObject(interactive.action)) throw new RequestValidationError("Product-list messages require an action object.");
   requiredString(interactive.action.catalog_id, "interactive.action.catalog_id", 128);
