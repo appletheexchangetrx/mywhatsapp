@@ -136,7 +136,7 @@ function validateProductList(interactive: JsonObject): void {
     if (!isObject(section) || !Array.isArray(section.product_items) || section.product_items.length < 1) {
       throw new RequestValidationError(`Product section ${sectionIndex + 1} must contain product_items.`);
     }
-    if (section.title !== undefined) requiredString(section.title, `sections[${sectionIndex}].title`, 24);
+    requiredString(section.title, `sections[${sectionIndex}].title`, 24);
     for (const item of section.product_items) {
       if (!isObject(item)) throw new RequestValidationError("Each product item must be an object.");
       requiredString(item.product_retailer_id, "product_retailer_id", 200);
