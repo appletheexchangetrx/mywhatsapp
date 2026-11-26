@@ -73,3 +73,78 @@ export async function disablePushNotifications() {
 
   await subscription.unsubscribe();
 }
+
+
+const SOUND_PREFERENCE_KEY = "trx_notification_sound_enabled";
+let notificationAudioContext = null;
+
+export function isNotificationSoundEnabled() {
+  try {
+    return localStorage.getItem(SOUND_PREFERENCE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export async function setNotificationSoundEnabled(enabled) {
+  try {
+    localStorage.setItem(SOUND_PREFERENCE_KEY, enabled ? "true" : "false");
+  } catch {
+    // Keep the in-memory preference for this page session.
+  }
+
+  if (enabled) await primeNotificationAudio();
+  return enabled;
+}
+
+async function getNotificationAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!notificationAudioContext) notificationAudioContext = new AudioContextClass();
+  if (notificationAudioContext.state === "suspended") {
+    await notificationAudioContext.resume();
+  }
+  return notificationAudioContext;
+}
+
+async function primeNotificationAudio() {
+  try {
+    const context = await getNotificationAudioContext();
+    if (!context) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0, context.currentTime);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.01);
+  } catch (error) {
+    console.warn("Notification audio could not be enabled:", error);
+  }
+}
+
+export async function playIncomingMessageSound() {
+  if (!isNotificationSoundEnabled()) return;
+
+  try {
+    const context = await getNotificationAudioContext();
+    if (!context || context.state !== "running") return;
+
+    const startAt = context.currentTime + 0.015;
+    for (const [offset, frequency] of [[0, 880], [0.14, 1174.66]]) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, startAt + offset);
+      gain.gain.setValueAtTime(0.0001, startAt + offset);
+      gain.gain.exponentialRampToValueAtTime(0.12, startAt + offset + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + 0.11);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(startAt + offset);
+      oscillator.stop(startAt + offset + 0.12);
+    }
+  } catch (error) {
+    console.warn("Incoming message sound failed:", error);
+  }
+}
