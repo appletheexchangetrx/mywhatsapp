@@ -3,6 +3,8 @@ import type { JsonObject, MetaMessagePayload } from "./types.ts";
 
 export class IdempotencyConflictError extends Error {}
 
+const STALE_SENDING_AFTER_MS = 2 * 60 * 1000;
+
 function getDatabase(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL");
   const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -21,6 +23,21 @@ export async function fingerprintPayload(payload: MetaMessagePayload): Promise<s
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+type ExistingRequest = {
+  payload_hash: string;
+  state: string;
+  wamid: string | null;
+  meta_response: JsonObject | null;
+};
+
+async function readExisting(db: SupabaseClient, key: string): Promise<ExistingRequest> {
+  const { data, error } = await db.from("trx_message_send_requests")
+    .select("payload_hash,state,wamid,meta_response")
+    .eq("idempotency_key", key).maybeSingle();
+  if (error || !data) throw new Error("Could not load existing WhatsApp send request.");
+  return data as ExistingRequest;
+}
+
 export async function beginSendRequest(
   idempotencyKey: string,
   payload: MetaMessagePayload,
@@ -28,30 +45,47 @@ export async function beginSendRequest(
   const db = getDatabase();
   const payloadHash = await fingerprintPayload(payload);
   const { error } = await db.from("trx_message_send_requests").insert({
-    idempotency_key: idempotencyKey,
-    payload_hash: payloadHash,
-    payload,
-    state: "sending",
+    idempotency_key: idempotencyKey, payload_hash: payloadHash, payload, state: "sending",
   });
   if (!error) return { created: true, state: "sending", wamid: null, metaResponse: null };
   if (error.code !== "23505") throw new Error("Could not persist WhatsApp send request.");
 
-  const { data, error: readError } = await db.from("trx_message_send_requests")
-    .select("payload_hash,state,wamid,meta_response")
-    .eq("idempotency_key", idempotencyKey).maybeSingle();
-  if (readError || !data) throw new Error("Could not load existing WhatsApp send request.");
-  if (data.payload_hash !== payloadHash) throw new IdempotencyConflictError("Idempotency-Key was already used with a different payload.");
+  let existing = await readExisting(db, idempotencyKey);
+  if (existing.payload_hash !== payloadHash) {
+    throw new IdempotencyConflictError("Idempotency-Key was already used with a different payload.");
+  }
+
+  if (existing.state === "sending") {
+    const staleBefore = new Date(Date.now() - STALE_SENDING_AFTER_MS).toISOString();
+    // A stale in-flight record becomes unknown, never eligible for automatic resend.
+    await db.from("trx_message_send_requests")
+      .update({ state: "unknown", error_details: { reason: "stale_sending_recovery", message: "The previous worker did not complete within the recovery window. Meta acceptance cannot be determined; do not resend automatically." }, updated_at: new Date().toISOString() })
+      .eq("idempotency_key", idempotencyKey).eq("state", "sending").lt("updated_at", staleBefore);
+    existing = await readExisting(db, idempotencyKey);
+  }
+
+  if (existing.state === "retryable") {
+    // Compare-and-set claim: only one concurrent retry can transition retryable -> sending.
+    const { data, error: claimError } = await db.from("trx_message_send_requests")
+      .update({ state: "sending", error_details: null, updated_at: new Date().toISOString() })
+      .eq("idempotency_key", idempotencyKey).eq("state", "retryable")
+      .select("idempotency_key");
+    if (claimError) throw new Error("Could not claim retryable WhatsApp send request.");
+    if (data?.length) return { created: true, state: "sending", wamid: null, metaResponse: null };
+    existing = await readExisting(db, idempotencyKey);
+  }
+
   return {
     created: false,
-    state: String(data.state),
-    wamid: typeof data.wamid === "string" ? data.wamid : null,
-    metaResponse: data.meta_response && typeof data.meta_response === "object" ? data.meta_response as JsonObject : null,
+    state: String(existing.state),
+    wamid: typeof existing.wamid === "string" ? existing.wamid : null,
+    metaResponse: existing.meta_response && typeof existing.meta_response === "object" ? existing.meta_response : null,
   };
 }
 
 export async function setSendRequestState(
   idempotencyKey: string,
-  state: "failed" | "unknown" | "accepted_unstored",
+  state: "failed" | "retryable" | "unknown" | "accepted_unstored",
   details: JsonObject,
   metaResponse?: JsonObject,
 ): Promise<void> {
@@ -61,8 +95,7 @@ export async function setSendRequestState(
     if (metaResponse) update.meta_response = metaResponse;
   }
   const { error } = await getDatabase().from("trx_message_send_requests")
-    .update(update)
-    .eq("idempotency_key", idempotencyKey);
+    .update(update).eq("idempotency_key", idempotencyKey).eq("state", "sending");
   if (error) throw new Error("Could not update WhatsApp send request state.");
 }
 
@@ -81,37 +114,24 @@ export async function completeSendRequest(
     ? ((payload.interactive as JsonObject).body as JsonObject | undefined)?.text
     : null;
   const row = {
-    from_phone: displayPhone,
-    phone_number_id: phoneNumberId,
-    display_phone_number: displayPhone,
-    recipient_phone: payload.to,
-    message_type: payload.type,
+    from_phone: displayPhone, phone_number_id: phoneNumberId, display_phone_number: displayPhone,
+    recipient_phone: payload.to, message_type: payload.type,
     text_body: typeof preview === "string" ? preview : null,
     message_timestamp: new Date().toISOString(),
     raw_message: { direction: "outbound", request: payload, meta_response: metaResponse },
   };
   const { error } = await getDatabase().rpc("complete_trx_message_send_request", {
-    p_idempotency_key: idempotencyKey,
-    p_wamid: wamid,
-    p_row: row,
-    p_meta_response: metaResponse,
+    p_idempotency_key: idempotencyKey, p_wamid: wamid, p_row: row, p_meta_response: metaResponse,
   });
   if (error) throw new Error("Message was accepted by WhatsApp but could not be saved.");
 }
 
 export async function recordStatusEvent(
-  wamid: string,
-  status: string,
-  timestamp: string,
-  errors: unknown,
-  rawStatus: JsonObject,
+  wamid: string, status: string, timestamp: string, errors: unknown, rawStatus: JsonObject,
 ): Promise<boolean> {
   const { data, error } = await getDatabase().rpc("record_trx_message_status_event", {
-    p_wamid: wamid,
-    p_status: status,
-    p_status_timestamp: timestamp,
-    p_error_details: errors ?? null,
-    p_raw_status: rawStatus,
+    p_wamid: wamid, p_status: status, p_status_timestamp: timestamp,
+    p_error_details: errors ?? null, p_raw_status: rawStatus,
   });
   if (error) throw new Error("Failed to persist WhatsApp message status event.");
   return data === true;

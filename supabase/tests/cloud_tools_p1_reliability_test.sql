@@ -62,6 +62,22 @@ begin
     raise exception 'Failed transaction left a partial outbound message';
   end if;
 
+
+  -- A stale sending record is recoverable as unknown, never as an automatic resend.
+  insert into public.trx_message_send_requests
+    (idempotency_key, payload_hash, payload, state, created_at, updated_at)
+  values
+    ('p1-test-stale-' || gen_random_uuid()::text, repeat('e', 64), '{"type":"text"}'::jsonb,
+     'sending', now() - interval '5 minutes', now() - interval '5 minutes');
+  update public.trx_message_send_requests
+     set state = 'unknown', updated_at = now()
+   where state = 'sending' and updated_at < now() - interval '2 minutes'
+     and payload_hash = repeat('e', 64);
+  if not exists (
+    select 1 from public.trx_message_send_requests
+    where state = 'unknown' and payload_hash = repeat('e', 64)
+  ) then raise exception 'Stale sending request was not marked unknown'; end if;
+
   -- A repeated key with different payload is prevented by the unique key and checked by API fingerprint logic.
   begin
     insert into public.trx_message_send_requests(idempotency_key, payload_hash, payload, state)

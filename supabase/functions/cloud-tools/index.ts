@@ -1,4 +1,4 @@
-import { sendToMeta, MetaApiError } from "./meta-client.ts";
+import { sendToMeta, MetaApiError, classifyMetaStatus } from "./meta-client.ts";
 import {
   beginSendRequest, completeSendRequest, setSendRequestState,
   IdempotencyConflictError,
@@ -13,8 +13,8 @@ const CORS_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
-function json(body: JsonObject, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS });
+function json(body: JsonObject, status = 200, extraHeaders: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, ...extraHeaders } });
 }
 
 function messagePreview(payload: MetaMessagePayload): string | null {
@@ -116,14 +116,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     return json({ success: true, wamid: result.wamid, to: payload.to, type: payload.type, preview: messagePreview(payload), status: "accepted", saved: true });
   } catch (error) {
-    if (error instanceof MetaApiError && error.status >= 400 && error.status < 500) {
-      try { await setSendRequestState(idempotencyKey, "failed", error.details); } catch (stateError) { console.error("Could not persist rejected send state", String(stateError)); }
-      return json({ error: error.message, details: error.details }, error.status);
+    if (error instanceof MetaApiError) {
+      const classification = classifyMetaStatus(error.status);
+      if (classification === "failed") {
+        try { await setSendRequestState(idempotencyKey, "failed", error.details); } catch (stateError) { console.error("Could not persist rejected send state", String(stateError)); }
+        return json({ error: error.message, details: error.details, status: "failed" }, error.status);
+      }
+      if (classification === "retryable") {
+        try { await setSendRequestState(idempotencyKey, "retryable", error.details); } catch (stateError) { console.error("Could not persist retryable send state", String(stateError)); }
+        const retryHeaders = error.retryAfter ? { "Retry-After": error.retryAfter } : {};
+        return json({ error: "Meta explicitly rejected this request due to rate limiting. Retry with the same Idempotency-Key after the indicated delay.", status: "retryable", retry_after: error.retryAfter }, 429, retryHeaders);
+      }
     }
     try { await setSendRequestState(idempotencyKey, "unknown", { message: error instanceof Error ? error.message : String(error) }); } catch (stateError) {
       console.error("Could not persist unknown send state", String(stateError));
     }
     console.error("cloud-tools send outcome is unknown", String(error));
-    return json({ error: "WhatsApp send outcome is unknown; retry with the same Idempotency-Key to check status, not to resend.", status: "unknown" }, 502);
+    return json({ error: "WhatsApp send outcome is unknown; automatic resend is blocked. Reconcile the result before retrying.", status: "unknown" }, 502);
   }
 });

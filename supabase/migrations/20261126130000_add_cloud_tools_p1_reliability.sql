@@ -151,3 +151,12 @@ revoke all on function public.record_trx_message_status_event(text, text, timest
 revoke all on function public.complete_trx_message_send_request(text, text, jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.record_trx_message_status_event(text, text, timestamptz, jsonb, jsonb) to service_role;
 grant execute on function public.complete_trx_message_send_request(text, text, jsonb, jsonb) to service_role;
+
+
+-- A 429 is an explicit rate-limit rejection and may be retried with the same
+-- idempotency key after Retry-After. Ambiguous outcomes remain in 'unknown'.
+alter table public.trx_message_send_requests
+  drop constraint if exists trx_message_send_requests_state_check;
+alter table public.trx_message_send_requests
+  add constraint trx_message_send_requests_state_check
+  check (state in ('sending', 'accepted', 'accepted_unstored', 'failed', 'retryable', 'unknown'));
