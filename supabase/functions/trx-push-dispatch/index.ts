@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { send } from "jsr:@daaku/webpush@0.2.0";
+import { installBase64Compat } from "../_shared/webpush-base64.js";
+
+// @daaku/webpush@0.2.0 uses both Uint8Array base64 APIs. Supabase Edge
+// runtimes may not expose them yet, so install a standards-compatible fallback.
+installBase64Compat();
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
