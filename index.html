@@ -98,7 +98,7 @@
       font-weight: 600;
       cursor: pointer;
     }
-    .push-button:disabled { opacity: .55; cursor: not-allowed; }
+    .push-button:disabled { opacity: .55; cursor: not-allowed; }\n    .sound-button { flex: 0 0 auto; min-height: 34px; padding: 0 9px; border: 1px solid #ffffff55; border-radius: 18px; color: #fff; background: #ffffff18; font-size: 10px; font-weight: 600; cursor: pointer; }
     .status-dot {
       display: inline-block;
       width: 8px;
@@ -371,7 +371,7 @@
       <span id="connection" role="status" aria-live="polite">
         <span class="status-dot"></span><span>Menghubungkan</span>
       </span>
-      <button id="push-button" class="push-button" type="button">Aktifkan notifikasi</button>
+      <button id="sound-button" class="sound-button" type="button" aria-pressed="true">Suara: ON</button>\n      <button id="push-button" class="push-button" type="button">Aktifkan notifikasi</button>
     </header>
 
     <div class="workspace">
@@ -418,7 +418,7 @@
 
   <script type="module">
     import { fetchMessages, subscribeToMessages, sendWhatsAppMessage } from "./assets/js/messages.js";
-    import { registerPushServiceWorker, getPushSubscription, enablePushNotifications, disablePushNotifications } from "./assets/js/push-notifications.js";
+    import { registerPushServiceWorker, getPushSubscription, enablePushNotifications, disablePushNotifications, isNotificationSoundEnabled, setNotificationSoundEnabled, playIncomingMessageSound } from "./assets/js/push-notifications.js";
 
     (() => {
       const $ = (id) => document.getElementById(id);
@@ -669,7 +669,7 @@
         }
       }
 
-      async function refreshPushButton() {
+      async function refreshSoundButton() {\n        const enabled = isNotificationSoundEnabled();\n        const button = $("sound-button");\n        button.textContent = enabled ? "Suara: ON" : "Suara: OFF";\n        button.setAttribute("aria-pressed", enabled ? "true" : "false");\n      }\n\n      $("sound-button").addEventListener("click", async () => {\n        const enabled = !isNotificationSoundEnabled();\n        await setNotificationSoundEnabled(enabled);\n        await refreshSoundButton();\n      });\n\n      async function refreshPushButton() {
         const button = $("push-button");
         if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
           button.disabled = true;
