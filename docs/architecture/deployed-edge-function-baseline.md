@@ -20,3 +20,15 @@ These files are an exact source baseline of the deployed entrypoints at capture 
 - Runtime secrets are not included in these files.
 - The current frontend still references `trx-send-messages`; do not cut it over until `cloud-tools` has passed the integration checks.
 - Source parity for the remaining deployed functions is still a separate task.
+
+## Remediation deployment record — 2026-11-26
+
+The following repository-managed updates were deployed after Deno tests and type-checks passed:
+
+| Function | Deployed version | Deployed source SHA-256 |
+|---|---:|---|
+| `cloud-tools` | 1 | `a8eb72d28214a971d52ac3a4cb8e06eee174fb46c172f731f2b05f1cda45da70` |
+| `trx-webhook` | 22 | `bd7749849dee94320136c852fe890905535e640a640c515352a1d0388b99798b` |
+| `trx-push-dispatch` | 13 | `fe5b97c79433102a41df9f980eec806ee9aff18813d3c0c581d7c8262ff9242f` |
+
+All three deployments use `verify_jwt=false`, consistent with the existing project configuration and the public frontend invocation model. Meta access credentials remain server-side in Edge Function Secrets.
