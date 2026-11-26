@@ -39,7 +39,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let payload: MetaMessagePayload;
   try {
     const to = normalizeRecipient(body.to);
-    const path = new URL(req.url).pathname.replace(/\\/+$/, "");
+    const path = new URL(req.url).pathname.replace(/\/+$/, "");
     if (path.endsWith("/messages/text")) {
       payload = buildTextPayload(to, body);
     } else if (path.endsWith("/messages/interactive")) {
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   } catch (error) {
     if (error instanceof MetaApiError) {
-      return json({ error: error.message, details: error.details }, 502);
+      return json({ error: error.message, details: error.details }, error.status >= 400 && error.status < 500 ? error.status : 502);
     }
     console.error("cloud-tools failed", String(error));
     return json({ error: error instanceof Error ? error.message : "Could not send WhatsApp message." }, 502);
