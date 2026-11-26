@@ -31,6 +31,20 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,6 +91,46 @@ jobs:
 
       - name: Test cloud-tools request validation
         run: deno test --allow-env supabase/functions/cloud-tools/validation_test.ts
+
+      - name: Test cloud-tools reliability primitives
+        run: deno test --allow-env supabase/functions/cloud-tools/reliability_test.ts
+
+      - name: Test P1 migration and transactional reliability scenarios
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do sleep 1; done
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres <<'SQL'
+          create role anon;
+          create role authenticated;
+          create role service_role;
+          create table public.trx_messages (
+            id uuid primary key default gen_random_uuid(),
+            wamid text not null unique,
+            from_phone text not null,
+            profile_name text,
+            phone_number_id text,
+            display_phone_number text,
+            message_type text not null,
+            text_body text,
+            message_timestamp timestamptz,
+            raw_message jsonb not null,
+            created_at timestamptz not null default now(),
+            direction text not null default 'inbound' check (direction in ('inbound', 'outbound')),
+            status text,
+            recipient_phone text,
+            error_details jsonb,
+            interactive_type text,
+            context_wamid text,
+            from_user_id text
+          );
+          alter table public.trx_messages enable row level security;
+          SQL
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres -f supabase/migrations/20261126130000_add_cloud_tools_p1_reliability.sql
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d postgres -f supabase/tests/cloud_tools_p1_reliability_test.sql
 
       - name: Type-check Edge Functions
         run: |
