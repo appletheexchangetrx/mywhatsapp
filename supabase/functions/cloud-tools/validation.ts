@@ -75,8 +75,22 @@ function validateButtons(interactive: JsonObject): void {
   if (interactive.header !== undefined) {
     const header = interactive.header;
     if (!isObject(header)) throw new RequestValidationError("'interactive.header' must be an object.");
-    if (header.type === "text") requiredString(header.text, "interactive.header.text", 60);
-    else if (!["image", "video", "document"].includes(String(header.type))) {
+    if (header.type === "text") {
+      requiredString(header.text, "interactive.header.text", 60);
+    } else if (["image", "video", "document"].includes(String(header.type))) {
+      const mediaType = String(header.type);
+      const media = header[mediaType];
+      if (!isObject(media)) {
+        throw new RequestValidationError(`Button ${mediaType} headers require a ${mediaType} media object.`);
+      }
+      const hasId = typeof media.id === "string" && media.id.trim().length > 0;
+      const hasLink = typeof media.link === "string" && media.link.trim().length > 0;
+      if (hasId === hasLink) {
+        throw new RequestValidationError(`Button ${mediaType} headers require exactly one non-empty media.id or media.link.`);
+      }
+      if (hasId) requiredString(media.id, `interactive.header.${mediaType}.id`);
+      if (hasLink) requiredString(media.link, `interactive.header.${mediaType}.link`);
+    } else {
       throw new RequestValidationError("Button header type must be text, image, video, or document.");
     }
   }
@@ -88,12 +102,18 @@ function validateButtons(interactive: JsonObject): void {
   if (buttons.length < 1 || buttons.length > 3) {
     throw new RequestValidationError("Reply button messages require 1–3 buttons.");
   }
+  const ids = new Set<string>();
+  const titles = new Set<string>();
   for (const [index, item] of buttons.entries()) {
     if (!isObject(item) || item.type !== "reply" || !isObject(item.reply)) {
       throw new RequestValidationError(`Button ${index + 1} must use type 'reply' and include a reply object.`);
     }
-    requiredString(item.reply.id, `buttons[${index}].reply.id`, 256);
-    requiredString(item.reply.title, `buttons[${index}].reply.title`, 20);
+    const id = requiredString(item.reply.id, `buttons[${index}].reply.id`, 256);
+    const title = requiredString(item.reply.title, `buttons[${index}].reply.title`, 20);
+    if (ids.has(id)) throw new RequestValidationError("Reply button IDs must be unique.");
+    if (titles.has(title)) throw new RequestValidationError("Reply button titles must be unique.");
+    ids.add(id);
+    titles.add(title);
   }
 }
 
