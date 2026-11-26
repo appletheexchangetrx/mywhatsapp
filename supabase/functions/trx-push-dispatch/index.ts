@@ -22,10 +22,21 @@ Deno.serve(async req=>{
   let delivered=0,failed=0;
   for(const event of events){
    let retry=false,deliveredForEvent=0;
+   const {data:message}=await db.from("trx_messages")
+    .select("from_phone,profile_name,text_body,message_type")
+    .eq("id",event.message_id).maybeSingle();
+   const notificationTitle=typeof message?.profile_name==="string"&&message.profile_name
+    ?message.profile_name
+    :typeof message?.from_phone==="string"&&message.from_phone
+     ?message.from_phone:"WhatsApp";
+   const notificationBody=typeof message?.text_body==="string"&&message.text_body
+    ?message.text_body
+    :typeof message?.message_type==="string"
+     ?`Pesan ${message.message_type}`:"Anda menerima pesan baru.";
    for(const sub of subs){
     try{
      await send({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},
-      JSON.stringify({title:"WhatsApp",body:"Anda menerima pesan baru.",url:"./"}),
+      JSON.stringify({title:notificationTitle,body:notificationBody,url:"./",tag:`wa-${event.message_id}`}),
       {vapid,subscriber:vapidSubject,ttl:60});
      delivered++;deliveredForEvent++;
     }catch(error){
