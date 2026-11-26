@@ -117,6 +117,37 @@ The thumbnail ID is optional in the Meta payload. When omitted, WhatsApp can use
 }
 ```
 
+## Interactive product carousel
+
+```json
+{
+  "to": "6281234567890",
+  "body": "Produk mana yang Anda pilih?",
+  "cards": [
+    {
+      "card_index": 0,
+      "type": "product",
+      "action": {
+        "product_retailer_id": "META_CONTENT_ID_1",
+        "catalog_id": "META_CATALOG_ID"
+      }
+    },
+    {
+      "card_index": 1,
+      "type": "product",
+      "action": {
+        "product_retailer_id": "META_CONTENT_ID_2",
+        "catalog_id": "META_CATALOG_ID"
+      }
+    }
+  ]
+}
+```
+
+Route: `POST /messages/product-carousel`.
+
+The Product Carousel is an interactive catalog message, not a media carousel. It requires 2–10 product cards, unique `card_index` values from 0 to 9, and the same `catalog_id` on every card. It has a required body and does not support a header, footer, or buttons. Each card must use `type: "product"` and provide both `product_retailer_id` and `catalog_id`.
+
 ## Validation and scope
 
 - Text body: maximum 4,096 characters.
@@ -125,8 +156,9 @@ The thumbnail ID is optional in the Meta payload. When omitted, WhatsApp can use
 - Reply buttons: 1–3 buttons; title maximum 20 characters.
 - Catalog footer: maximum 60 characters.
 - Product list: 1–10 sections and maximum 30 product items.
+- Product carousel: 2–10 product cards, unique indexes 0–9, one shared catalog ID; no header, footer, or buttons.
 - Location Request is intentionally not supported.
-- Product carousel is not part of this initial implementation; its Meta payload contract must be separately verified before adding it.
+- Media carousel is a different message format and is not implemented by the Product Carousel route.
 - The generic `/messages` route is for other documented Cloud API message types; Meta remains the final validator for type-specific fields not covered by the specialized routes.
 
 ## Persistence
@@ -144,5 +176,8 @@ A successful send request means Meta accepted the message and returned a WAMID. 
 
 - [WhatsApp Business Platform overview](https://developers.facebook.com/documentation/business-messaging/whatsapp/overview)
 - [Interactive messages — list and reply buttons](https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/interactive-list-messages)
-- [Share products with customers — catalog, single product, and multi-product](https://developers.facebook.com/docs/whatsapp/guides/commerce-guides/share-products-with-customers/)
+- [Catalog messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/catalogs/catalog-messages)
+- [Single-product messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/catalogs/single-product-messages)
+- [Multi-product messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/catalogs/multi-product-messages)
+- [Interactive product carousel messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/catalogs/interactive-product-carousel-messages)
 - [WhatsApp Cloud API message templates](https://developers.facebook.com/docs/whatsapp/api/messages/message-templates/interactive-message-templates/)
