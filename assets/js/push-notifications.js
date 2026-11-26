@@ -148,3 +148,27 @@ export async function playIncomingMessageSound() {
     console.warn("Incoming message sound failed:", error);
   }
 }
+
+let notificationAudioPrimingInstalled = false;
+
+export function initializeNotificationAudio() {
+  if (notificationAudioPrimingInstalled || typeof document === "undefined") return;
+  notificationAudioPrimingInstalled = true;
+
+  const primeOnInteraction = () => {
+    if (isNotificationSoundEnabled()) {
+      void primeNotificationAudio();
+    }
+    document.removeEventListener("pointerdown", primeOnInteraction, true);
+    document.removeEventListener("keydown", primeOnInteraction, true);
+  };
+
+  document.addEventListener("pointerdown", primeOnInteraction, {
+    once: true,
+    capture: true,
+  });
+  document.addEventListener("keydown", primeOnInteraction, {
+    once: true,
+    capture: true,
+  });
+}
