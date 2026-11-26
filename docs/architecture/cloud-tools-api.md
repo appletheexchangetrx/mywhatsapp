@@ -152,7 +152,7 @@ The Product Carousel is an interactive catalog message, not a media carousel. It
 
 - Text body: maximum 4,096 characters.
 - Interactive body: maximum 1,024 characters.
-- Interactive list: maximum 10 rows total; list button maximum 20 characters.
+- Interactive list: body maximum 4,096 characters; 1–10 sections; maximum 10 rows total; section title maximum 24 characters; list button maximum 20 characters. Header, when present, is text-only.
 - Reply buttons: 1–3 buttons; title maximum 20 characters.
 - Catalog footer: maximum 60 characters.
 - Product list: 1–10 sections and maximum 30 product items.
@@ -169,6 +169,8 @@ After Meta returns a WAMID, the function inserts one outbound row into `trx_mess
 - `message_type` matches the Meta message type
 - `recipient_phone` is the recipient
 - `raw_message` preserves both `request` and `meta_response`
+
+Interactive list, reply-button, catalog, single-product, multi-product, and product-carousel messages are free-form messages for an existing chat thread; they are not substitutes for approved templates outside the customer service window. Use the generic `/messages` route with `type: "template"` for an approved template payload when the conversation window does not permit free-form messages.
 
 A successful send request means Meta accepted the message and returned a WAMID. It does not mean the message was delivered or read; status changes arrive separately through `trx-webhook`.
 
