@@ -167,3 +167,16 @@ Deno.test("rejects product-list sections without a title", () => {
     },
   }));
 });
+
+Deno.test("accepts more than ten product-list sections when total products stay within 30", () => {
+  const sections = Array.from({ length: 11 }, (_, index) => ({
+    title: "Section " + index,
+    product_items: [{ product_retailer_id: "sku_" + index }],
+  }));
+  buildInteractivePayload("6281234567890", {
+    type: "product_list",
+    header: { type: "text", text: "Featured products" },
+    body: { text: "Choose a product" },
+    action: { catalog_id: "catalog_1", sections },
+  });
+});
