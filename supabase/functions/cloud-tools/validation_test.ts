@@ -108,3 +108,29 @@ Deno.test("rejects more than three reply buttons", () => {
     },
   }));
 });
+
+Deno.test("validates interactive product carousel", () => {
+  buildInteractivePayload("6281234567890", {
+    type: "carousel",
+    body: { text: "Which product do you prefer?" },
+    action: {
+      cards: [
+        { card_index: 0, type: "product", action: { product_retailer_id: "sku_1", catalog_id: "catalog_1" } },
+        { card_index: 1, type: "product", action: { product_retailer_id: "sku_2", catalog_id: "catalog_1" } },
+      ],
+    },
+  });
+});
+
+Deno.test("rejects product carousel cards with different catalogs", () => {
+  expectValidationError(() => buildInteractivePayload("6281234567890", {
+    type: "carousel",
+    body: { text: "Choose a product" },
+    action: {
+      cards: [
+        { card_index: 0, type: "product", action: { product_retailer_id: "sku_1", catalog_id: "catalog_1" } },
+        { card_index: 1, type: "product", action: { product_retailer_id: "sku_2", catalog_id: "catalog_2" } },
+      ],
+    },
+  }));
+});
