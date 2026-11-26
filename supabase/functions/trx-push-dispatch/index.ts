@@ -6,7 +6,7 @@ function admin(){const raw=Deno.env.get("SUPABASE_SECRET_KEYS");let key=Deno.env
 Deno.serve(async req=>{
  if(req.method!=="POST")return json({error:"Method not allowed"},405);
  const raw=Deno.env.get("VAPID_PRIVATE_KEY");if(!raw)return json({error:"VAPID private key is not configured"},503);
- const vapidSubject=Deno.env.get("VAPID_SUBJECT");if(!vapidSubject)return json({error:"VAPID subject is not configured"},503);
+ const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"https://appletheexchangetrx.github.io/mywhatsapp/";
  let vapid:JsonWebKey;try{vapid=JSON.parse(raw) as JsonWebKey}catch{return json({error:"VAPID_PRIVATE_KEY must contain a JSON JWK"},500)}
  try{
   const db=admin();
