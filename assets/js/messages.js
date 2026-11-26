@@ -13,6 +13,9 @@ const MESSAGE_COLUMNS = [
   "direction",
   "status",
   "recipient_phone",
+  "interactive_type",
+  "context_wamid",
+  "from_user_id",
 ].join(",");
 
 export async function fetchMessages(limit = 50) {
